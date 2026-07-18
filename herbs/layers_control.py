@@ -10,6 +10,7 @@ from PyQt5.QtCore import *
 import cv2
 
 from .wtiles import *
+from .resources import resource_path
 
 
 btm_style = '''
@@ -106,8 +107,8 @@ class SingleLayer(QWidget):
         self.eye_button.setStyleSheet(eye_button_style)
         self.eye_button.setCheckable(True)
         eye_icon = QIcon()
-        eye_icon.addPixmap(QPixmap("icons/layers/eye_on.png"), QIcon.Normal, QIcon.Off)
-        eye_icon.addPixmap(QPixmap("icons/layers/eye_off.png"), QIcon.Normal, QIcon.On)
+        eye_icon.addPixmap(QPixmap(resource_path("icons/layers/eye_on.png")), QIcon.Normal, QIcon.Off)
+        eye_icon.addPixmap(QPixmap(resource_path("icons/layers/eye_off.png")), QIcon.Normal, QIcon.On)
         self.eye_button.setIcon(eye_icon)
         self.eye_button.setIconSize(QSize(20, 20))
         self.eye_button.clicked.connect(self.eye_on_click)
@@ -133,7 +134,7 @@ class SingleLayer(QWidget):
         self.trash_button = QPushButton()
         self.trash_button.setFixedSize(QSize(25, 60))
         self.trash_button.setStyleSheet(eye_button_style)
-        self.trash_button.setIcon(QIcon('icons/sidebar/trash.png'))
+        self.trash_button.setIcon(QIcon(resource_path('icons/sidebar/trash.png')))
         self.trash_button.setIconSize(QSize(20, 20))
         self.trash_button.clicked.connect(self.on_delete)
 
@@ -323,14 +324,14 @@ class LayersControl(QWidget):
         self.add_layer_btn = QPushButton()
         self.add_layer_btn.setFixedSize(24, 24)
         self.add_layer_btn.setStyleSheet(btm_style)
-        self.add_layer_btn.setIcon(QIcon('icons/layers/add.png'))
+        self.add_layer_btn.setIcon(QIcon(resource_path('icons/layers/add.png')))
         self.add_layer_btn.setIconSize(QSize(20, 20))
         self.add_layer_btn.clicked.connect(lambda: self.add_layer('Layer', []))
 
         self.delete_layer_btn = QPushButton()
         self.delete_layer_btn.setFixedSize(24, 24)
         self.delete_layer_btn.setStyleSheet(btm_style)
-        self.delete_layer_btn.setIcon(QIcon('icons/layers/trash.png'))
+        self.delete_layer_btn.setIcon(QIcon(resource_path('icons/layers/trash.png')))
         self.delete_layer_btn.setIconSize(QSize(20, 20))
         self.delete_layer_btn.clicked.connect(self.delete_current_layers)
 
@@ -540,7 +541,6 @@ class LayersControl(QWidget):
         self.layer_blend_mode = []
         self.current_layer_index = []
         self.layer_count = 0
-
 
 
 

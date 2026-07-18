@@ -8,6 +8,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from .wtiles import QDoubleButton
 from .uuuuuu import read_qss_file
+from .resources import resource_path
 
 
 eye_button_style = """
@@ -718,8 +719,8 @@ class RegisteredObject(QWidget):
         self.eye_button.setStyleSheet(eye_button_style)
         self.eye_button.setCheckable(True)
         eye_icon = QIcon()
-        eye_icon.addPixmap(QPixmap("icons/layers/eye_on.png"), QIcon.Normal, QIcon.Off)
-        eye_icon.addPixmap(QPixmap("icons/layers/eye_off.png"), QIcon.Normal, QIcon.On)
+        eye_icon.addPixmap(QPixmap(resource_path("icons/layers/eye_on.png")), QIcon.Normal, QIcon.Off)
+        eye_icon.addPixmap(QPixmap(resource_path("icons/layers/eye_off.png")), QIcon.Normal, QIcon.On)
         self.eye_button.setIcon(eye_icon)
         self.eye_button.setIconSize(QSize(20, 20))
         self.eye_button.clicked.connect(self.eye_on_click)
@@ -740,9 +741,9 @@ class RegisteredObject(QWidget):
         self.link_button.setCheckable(True)
         link_icon = QIcon()
         link_icon.addPixmap(
-            QPixmap("icons/sidebar/link_off.svg"), QIcon.Normal, QIcon.Off
+            QPixmap(resource_path("icons/sidebar/link_off.svg")), QIcon.Normal, QIcon.Off
         )
-        link_icon.addPixmap(QPixmap("icons/sidebar/link.svg"), QIcon.Normal, QIcon.On)
+        link_icon.addPixmap(QPixmap(resource_path("icons/sidebar/link.svg")), QIcon.Normal, QIcon.On)
         self.link_button.setIcon(link_icon)
         self.link_button.setIconSize(QSize(20, 20))
         self.link_button.clicked.connect(self.on_linked)
@@ -814,7 +815,7 @@ class BottomButton(QPushButton):
         btm_style = read_qss_file("qss/obj_ctrl_bottom_button.qss")
         self.setFixedSize(24, 24)
         self.setStyleSheet(btm_style)
-        self.setIcon(QIcon(icon_path))
+        self.setIcon(QIcon(resource_path(icon_path)))
         self.setIconSize(QSize(20, 20))
 
 
@@ -880,12 +881,12 @@ class ObjectControl(QObject):
         self.obj_visibility = []
         self.obj_merged = []
 
-        self.probe_icon = QIcon("icons/sidebar/probe.svg")
-        self.virus_icon = QIcon("icons/sidebar/virus.svg")
-        self.drawing_icon = QIcon("icons/toolbar/pencil.svg")
-        self.cell_icon = QIcon("icons/toolbar/location.svg")
-        self.contour_icon = QIcon("icons/sidebar/contour.svg")
-        self.compare_icon = QIcon("icons/sidebar/compare.svg")
+        self.probe_icon = QIcon(resource_path("icons/sidebar/probe.svg"))
+        self.virus_icon = QIcon(resource_path("icons/sidebar/virus.svg"))
+        self.drawing_icon = QIcon(resource_path("icons/toolbar/pencil.svg"))
+        self.cell_icon = QIcon(resource_path("icons/toolbar/location.svg"))
+        self.contour_icon = QIcon(resource_path("icons/sidebar/contour.svg"))
+        self.compare_icon = QIcon(resource_path("icons/sidebar/compare.svg"))
 
         combo_label = QLabel("Composition:")
         combo_label.setFixedWidth(80)

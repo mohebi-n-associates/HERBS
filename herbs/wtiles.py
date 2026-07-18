@@ -3,6 +3,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 import numpy as np
 from .uuuuuu import read_qss_file
+from .resources import resource_path
 
 dialog_style = '''
 QDialog {
@@ -314,7 +315,7 @@ class LinearSiliconInfoDialog(QDialog):
         n_column = len(self.probe_settings['x_bias'])
 
         fig_label = QLabel()
-        pixmap = QPixmap('icons/toolbar/linear_silicon.png')
+        pixmap = QPixmap(resource_path('icons/toolbar/linear_silicon.png'))
         fig_label.setPixmap(pixmap)
         fig_label.setFixedHeight(300)
 
@@ -572,7 +573,7 @@ class MultiProbePlanningDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
 
         fig_label = QLabel()
-        pixmap = QPixmap('icons/toolbar/multi_probe.png')
+        pixmap = QPixmap(resource_path('icons/toolbar/multi_probe.png'))
         fig_label.setPixmap(pixmap)
         fig_label.setFixedHeight(300)
 
@@ -709,7 +710,6 @@ class MultiProbePlanningDialog(QDialog):
         w_id = obj[0]
         index_val = obj[1]
         self.multi_settings['faces'][w_id] = index_val
-
 
 
 

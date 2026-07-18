@@ -87,4 +87,5 @@ setup(
     classifiers=[_f for _f in CLASSIFIERS.split("\n") if _f],
     python_requires=">=3.8.10,<3.12",
     install_requires=[_f for _f in REQUIRES.split("\n") if _f],
+    entry_points={"console_scripts": ["herbs=herbs.run_herbs:run_herbs"]},
 )

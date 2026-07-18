@@ -1,0 +1,77 @@
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+import types
+from unittest import mock
+import unittest
+
+import herbs
+from herbs.resources import resource_path
+from herbs.run_herbs import run_herbs
+from herbs.user_settings import load_last_atlas_path, save_last_atlas_path, settings_path
+from herbs.uuuuuu import read_qss_file
+
+
+class RuntimePathTests(unittest.TestCase):
+    def test_package_import_does_not_eagerly_import_the_gui(self):
+        self.assertTrue(callable(herbs.run_herbs))
+        self.assertNotIn("herbs.herbsgui", sys.modules)
+
+    def test_resources_resolve_outside_the_package_working_directory(self):
+        previous_directory = os.getcwd()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            os.chdir(temporary_directory)
+            try:
+                icon = Path(resource_path("icons/backward.svg"))
+                style = read_qss_file("qss/main_window.qss")
+            finally:
+                os.chdir(previous_directory)
+
+        self.assertTrue(icon.is_absolute())
+        self.assertTrue(icon.is_file())
+        self.assertIn("QMainWindow", style)
+
+    def test_launcher_does_not_change_the_process_working_directory(self):
+        observed_directories = []
+        fake_gui = types.ModuleType("herbs.herbsgui")
+
+        def fake_main():
+            observed_directories.append(os.getcwd())
+            return 17
+
+        fake_gui.main = fake_main
+        original_directory = os.getcwd()
+        with mock.patch.dict(sys.modules, {"herbs.herbsgui": fake_gui}):
+            result = run_herbs()
+
+        self.assertEqual(result, 17)
+        self.assertEqual(observed_directories, [original_directory])
+        self.assertEqual(os.getcwd(), original_directory)
+
+    def test_atlas_preference_uses_an_atomic_user_config_file(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            with mock.patch.dict(
+                os.environ, {"HERBS_CONFIG_DIR": temporary_directory}, clear=False
+            ):
+                self.assertIsNone(load_last_atlas_path())
+                save_last_atlas_path("/example/atlas")
+
+                self.assertEqual(load_last_atlas_path(), "/example/atlas")
+                self.assertEqual(settings_path().parent, Path(temporary_directory))
+                settings = json.loads(settings_path().read_text(encoding="utf-8"))
+                self.assertEqual(settings["schema_version"], 1)
+                self.assertFalse(any(settings_path().parent.glob(".settings-*.tmp")))
+
+    def test_corrupt_preferences_are_ignored(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            with mock.patch.dict(
+                os.environ, {"HERBS_CONFIG_DIR": temporary_directory}, clear=False
+            ):
+                settings_path().write_text("not json", encoding="utf-8")
+                self.assertIsNone(load_last_atlas_path())
+
+
+if __name__ == "__main__":
+    unittest.main()

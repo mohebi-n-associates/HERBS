@@ -19,6 +19,7 @@ from .image_curves import CurveWidget
 from .uuuuuu import hsv2rgb, gamma_line, color_img, make_color_lut, get_corner_line_from_rect, \
     rotate, rotate_bound, get_tb_size, read_qss_file
 from .layer_validation import image_layer_matches
+from .resources import resource_path
 
 
 class ImagePageController(QWidget):
@@ -43,12 +44,12 @@ class ImagePageController(QWidget):
         self.page_label.setFixedSize(50, 20)
 
         self.page_left_btn = QPushButton()
-        self.page_left_btn.setIcon(QIcon("icons/backward.svg"))
+        self.page_left_btn.setIcon(QIcon(resource_path("icons/backward.svg")))
         self.page_left_btn.setIconSize(QSize(16, 16))
         self.page_left_btn.clicked.connect(self.left_btn_clicked)
 
         self.page_right_btn = QPushButton()
-        self.page_right_btn.setIcon(QIcon("icons/forward.svg"))
+        self.page_right_btn.setIcon(QIcon(resource_path("icons/forward.svg")))
         self.page_right_btn.setIconSize(QSize(16, 16))
         self.page_right_btn.clicked.connect(self.right_btn_clicked)
 
@@ -643,5 +644,4 @@ class ImageView(QObject):
         self.get_corner_and_lines()
 
     # def clear_curve_widget(self):
-
 

@@ -23,6 +23,10 @@ class PackagingMetadataTests(unittest.TestCase):
             "Programming Language :: Python :: 3.11", metadata["classifiers"]
         )
         self.assertNotIn("Typing :: Typed", metadata["classifiers"])
+        self.assertEqual(
+            metadata["entry_points"]["console_scripts"],
+            ["herbs=herbs.run_herbs:run_herbs"],
+        )
 
     def test_project_links_point_to_the_current_repository(self):
         with mock.patch("setuptools.setup") as setup:

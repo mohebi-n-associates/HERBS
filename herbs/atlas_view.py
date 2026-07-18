@@ -16,6 +16,7 @@ from .uuuuuu import read_qss_file, get_corner_line_from_rect, get_slice_atlas_co
     rotate_base_points, rotation_x, rotation_y, rotation_z
 from .probe_utiles import get_tilt_sign#, get_direction_rotation
 from .slice_validation import slice_info_is_ready
+from .resources import resource_path
 
 
 class PageController(QWidget):
@@ -40,22 +41,22 @@ class PageController(QWidget):
         self.page_label.setFixedSize(50, 20)
 
         self.page_left_btn = QPushButton()
-        self.page_left_btn.setIcon(QIcon("icons/backward.svg"))
+        self.page_left_btn.setIcon(QIcon(resource_path("icons/backward.svg")))
         self.page_left_btn.setIconSize(QSize(16, 16))
         self.page_left_btn.clicked.connect(self.left_btn_clicked)
 
         self.page_right_btn = QPushButton()
-        self.page_right_btn.setIcon(QIcon("icons/forward.svg"))
+        self.page_right_btn.setIcon(QIcon(resource_path("icons/forward.svg")))
         self.page_right_btn.setIconSize(QSize(16, 16))
         self.page_right_btn.clicked.connect(self.right_btn_clicked)
 
         self.page_fast_left_btn = QPushButton()
-        self.page_fast_left_btn.setIcon(QIcon("icons/fast_backward.svg"))
+        self.page_fast_left_btn.setIcon(QIcon(resource_path("icons/fast_backward.svg")))
         self.page_fast_left_btn.setIconSize(QSize(16, 16))
         self.page_fast_left_btn.clicked.connect(self.fast_left_btn_clicked)
 
         self.page_fast_right_btn = QPushButton()
-        self.page_fast_right_btn.setIcon(QIcon("icons/fast_forward.svg"))
+        self.page_fast_right_btn.setIcon(QIcon(resource_path("icons/fast_forward.svg")))
         self.page_fast_right_btn.setIconSize(QSize(16, 16))
         self.page_fast_right_btn.clicked.connect(self.fast_right_btn_clicked)
 
@@ -218,7 +219,7 @@ class RotationBtn(QPushButton):
         btn_style = read_qss_file('qss/rotation_button.qss')
         self.setStyleSheet(btn_style)
         self.setFixedSize(15, 15)
-        self.setIcon(QIcon(icon_path))
+        self.setIcon(QIcon(resource_path(icon_path)))
         self.setIconSize(QSize(15, 15))
 
 
@@ -439,7 +440,7 @@ class AtlasView(QObject):
         coronal_wrap_layout.setContentsMargins(0, 0, 0, 0)
         coronal_wrap_layout.setSpacing(10)
 
-        c_section_label_img = QPixmap('icons/sidebar/c_section.png')
+        c_section_label_img = QPixmap(resource_path('icons/sidebar/c_section.png'))
         c_section_label_img = c_section_label_img.scaled(QSize(40, 40))
         c_section_label = QLabel('Tilt Z: ')
         c_section_label.setPixmap(c_section_label_img)
@@ -462,7 +463,7 @@ class AtlasView(QObject):
         sagital_wrap_layout.setContentsMargins(0, 0, 0, 0)
         sagital_wrap_layout.setSpacing(10)
 
-        s_section_label_img = QPixmap('icons/sidebar/s_section.png')
+        s_section_label_img = QPixmap(resource_path('icons/sidebar/s_section.png'))
         s_section_label_img = s_section_label_img.scaled(QSize(40, 40))
         s_section_label = QLabel()
         s_section_label.setPixmap(s_section_label_img)
@@ -485,7 +486,7 @@ class AtlasView(QObject):
         horizontal_wrap_layout.setContentsMargins(0, 0, 0, 0)
         horizontal_wrap_layout.setSpacing(10)
 
-        h_section_label_img = QPixmap('icons/sidebar/h_section.png')
+        h_section_label_img = QPixmap(resource_path('icons/sidebar/h_section.png'))
         h_section_label_img = h_section_label_img.scaled(QSize(40, 40))
         h_section_label = QLabel()
         h_section_label.setPixmap(h_section_label_img)
@@ -1347,7 +1348,6 @@ class AtlasView(QObject):
     def clear_atlas(self):
         self.clear_volume_atlas()
         self.clear_slice_atlas()
-
 
 
 

@@ -11,10 +11,11 @@ import scipy.ndimage as ndi
 from scipy.interpolate import interp1d, splprep, splev
 from .coordinate_validation import coordinates_in_bounds
 from .persistence import load_herbs_file
+from .resources import resource_path
 
 
 def read_qss_file(qss_file_name):
-    with open(qss_file_name, "r", encoding="UTF-8") as file:
+    with open(resource_path(qss_file_name), "r", encoding="UTF-8") as file:
         return file.read()
 
 

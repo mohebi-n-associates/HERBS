@@ -1,7 +1,6 @@
 import os
 import sys
 from os.path import dirname, realpath, join
-from sys import argv, exit
 import copy
 
 import pickle
@@ -112,6 +111,8 @@ from .obj_items import (
 from .about_herbs import AboutHERBSWindow
 from .persistence import save_herbs_file
 from .cell_detection import select_detection_channel
+from .resources import resource_path
+from .user_settings import load_last_atlas_path, save_last_atlas_path
 
 
 script_dir = dirname(realpath(__file__))
@@ -1819,7 +1820,7 @@ class HERBS(QMainWindow, FORM_Main):
         # -------------- ToolBar layout and functions -------------- #
         self.tool_box.add_atlas.triggered.connect(self.load_previous_atlas)
         self.tool_box.add_image_stack.triggered.connect(self.load_image)
-        #     add_cell_act = QAction(QIcon('icons/neuron.png'), 'upload recorded cell activities', self)
+        #     add_cell_act = QAction(QIcon(resource_path('icons/neuron.png')), 'upload recorded cell activities', self)
         self.tool_box.vis2.triggered.connect(self.show_2_windows)
         self.tool_box.vis3.triggered.connect(self.show_3_windows)
         self.tool_box.vis4.triggered.connect(self.show_4_windows)
@@ -2044,11 +2045,11 @@ class HERBS(QMainWindow, FORM_Main):
         tab_style = read_qss_file("qss/tabs.qss")
         self.sidebar.setStyleSheet(tab_style)
         self.sidebar.setIconSize(QSize(24, 24))
-        self.sidebar.setTabIcon(0, QIcon("icons/sidebar/atlascontrol.svg"))
-        self.sidebar.setTabIcon(1, QIcon("icons/sidebar/treeview.svg"))
-        self.sidebar.setTabIcon(2, QIcon("icons/sidebar/tool.svg"))
-        self.sidebar.setTabIcon(3, QIcon("icons/sidebar/layers.svg"))
-        self.sidebar.setTabIcon(4, QIcon("icons/sidebar/object.svg"))
+        self.sidebar.setTabIcon(0, QIcon(resource_path("icons/sidebar/atlascontrol.svg")))
+        self.sidebar.setTabIcon(1, QIcon(resource_path("icons/sidebar/treeview.svg")))
+        self.sidebar.setTabIcon(2, QIcon(resource_path("icons/sidebar/tool.svg")))
+        self.sidebar.setTabIcon(3, QIcon(resource_path("icons/sidebar/layers.svg")))
+        self.sidebar.setTabIcon(4, QIcon(resource_path("icons/sidebar/object.svg")))
 
         # ---------------------------- atlas control panel
         atlas_panel_layout = QVBoxLayout(self.atlascontrolpanel)
@@ -6518,10 +6519,14 @@ class HERBS(QMainWindow, FORM_Main):
                 self, dialog_title, file_path, options=file_options
             )
         )
-        with open("data/atlas_path.txt", "w") as f:
-            f.write(atlas_folder)
-
         if atlas_folder != "":
+            try:
+                save_last_atlas_path(atlas_folder)
+            except OSError:
+                self.print_message(
+                    "Atlas loaded, but its location could not be remembered.",
+                    self.reminder_color,
+                )
             self.load_volume_atlas(atlas_folder)
         else:
             self.print_message("", self.normal_color)
@@ -6534,40 +6539,27 @@ class HERBS(QMainWindow, FORM_Main):
             "Loading Previous Loaded Volume Brain Atlas...", self.normal_color
         )
 
-        if os.path.exists("data/atlas_path.txt"):
-            try:
-                with open("data/atlas_path.txt") as f:
-                    lines = f.readlines()
-                atlas_folder = lines[0]
-            except (IOError, OSError, IndexError):
-                atlas_folder = str(
-                    QFileDialog.getExistingDirectory(
-                        self, "Select Atlas Folder", self.home_path
-                    )
-                )
-                with open("data/atlas_path.txt", "w") as f:
-                    f.write(atlas_folder)
+        atlas_folder = load_last_atlas_path()
+        if atlas_folder is not None and not os.path.isdir(atlas_folder):
+            msg = "The previously loaded atlas was moved or deleted. Please select its folder."
+            self.print_message(msg, self.reminder_color)
+            atlas_folder = None
 
-            if not os.path.exists(atlas_folder):
-                msg = "The previous loaded volume atlas might be moved or deleted. Please selected atlas folder..."
-                self.print_message(msg, self.reminder_color)
-                atlas_folder = str(
-                    QFileDialog.getExistingDirectory(
-                        self, "Select Atlas Folder", self.home_path
-                    )
-                )
-                with open("data/atlas_path.txt", "w") as f:
-                    f.write(atlas_folder)
-        else:
+        if atlas_folder is None:
             atlas_folder = str(
                 QFileDialog.getExistingDirectory(
                     self, "Select Atlas Folder", self.home_path
                 )
             )
-            with open("data/atlas_path.txt", "w") as f:
-                f.write(atlas_folder)
 
         if atlas_folder != "":
+            try:
+                save_last_atlas_path(atlas_folder)
+            except OSError:
+                self.print_message(
+                    "Atlas loaded, but its location could not be remembered.",
+                    self.reminder_color,
+                )
             self.load_volume_atlas(atlas_folder)
         else:
             self.print_message("", self.normal_color)
@@ -7798,7 +7790,7 @@ class HERBS(QMainWindow, FORM_Main):
 #                    Main run
 # -------------------------------------------------------------
 def main():
-    app = QApplication(argv)
+    app = QApplication(sys.argv)
     qss_file_name = "qss/main_window.qss"
     herbs_style = read_qss_file(qss_file_name)
     app.setStyleSheet(herbs_style)
@@ -7808,4 +7800,4 @@ def main():
     #     app.instance().exec_()
     window = HERBS()
     window.show()
-    exit(app.exec_())
+    return app.exec_()

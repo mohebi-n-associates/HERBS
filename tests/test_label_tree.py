@@ -32,23 +32,18 @@ class LabelTreeTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def test_reset_restores_qcolor_without_type_error(self):
-        previous_directory = os.getcwd()
-        os.chdir(PACKAGE_PATH)
-        try:
-            tree = label_tree.LabelTree()
-            tree.set_labels(
-                {
-                    "index": np.array([1]),
-                    "parent": np.array([-1]),
-                    "color": np.array([[10, 20, 30]]),
-                    "label": np.array(["Region"]),
-                    "abbrev": np.array(["R"]),
-                }
-            )
-            tree.set_label_color(1, QColor(200, 100, 50), recursive=False)
-            tree.reset_colors()
-        finally:
-            os.chdir(previous_directory)
+        tree = label_tree.LabelTree()
+        tree.set_labels(
+            {
+                "index": np.array([1]),
+                "parent": np.array([-1]),
+                "color": np.array([[10, 20, 30]]),
+                "label": np.array(["Region"]),
+                "abbrev": np.array(["R"]),
+            }
+        )
+        tree.set_label_color(1, QColor(200, 100, 50), recursive=False)
+        tree.reset_colors()
 
         self.assertEqual(tree.labels_by_id[1]["btn"].color().getRgb()[:3], (10, 20, 30))
         np.testing.assert_array_equal(tree.current_lut[1, :3], (10, 20, 30))

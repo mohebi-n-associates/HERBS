@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import *
 import pyqtgraph as pg
 import numpy as np
 from pyqtgraph.Qt import QtGui, QtCore
+from .resources import resource_path
 
 
 class ToolBox(QObject):
@@ -21,48 +22,48 @@ class ToolBox(QObject):
         self.merge_sites = False
 
         # action version
-        self.add_atlas = QAction(QIcon('icons/toolbar/atlas_icon.png'), 'Upload Previous Loaded Volume Atlas', self)
-        self.add_image_stack = QAction(QIcon('icons/toolbar/image_icon.svg'), 'Upload Histological Image', self)
+        self.add_atlas = QAction(QIcon(resource_path('icons/toolbar/atlas_icon.png')), 'Upload Previous Loaded Volume Atlas', self)
+        self.add_image_stack = QAction(QIcon(resource_path('icons/toolbar/image_icon.svg')), 'Upload Histological Image', self)
 
-        self.vis2 = QAction(QIcon('icons/toolbar/two_window.png'), 'Show 2 Windows', self)
-        self.vis4 = QAction(QIcon('icons/toolbar/window4.png'), 'Show 4 Windows', self)
-        self.vis3 = QAction(QIcon('icons/toolbar/window3.png'), 'Show 3 Windows', self)
+        self.vis2 = QAction(QIcon(resource_path('icons/toolbar/two_window.png')), 'Show 2 Windows', self)
+        self.vis4 = QAction(QIcon(resource_path('icons/toolbar/window4.png')), 'Show 4 Windows', self)
+        self.vis3 = QAction(QIcon(resource_path('icons/toolbar/window3.png')), 'Show 3 Windows', self)
 
-        self.toa_btn_off_icon = QIcon('icons/toolbar/toa.svg')
-        self.toa_btn_on_icon = QIcon('icons/toolbar/toa_delete.svg')
+        self.toa_btn_off_icon = QIcon(resource_path('icons/toolbar/toa.svg'))
+        self.toa_btn_on_icon = QIcon(resource_path('icons/toolbar/toa_delete.svg'))
 
-        self.toh_btn_off_icon = QIcon('icons/toolbar/toh.svg')
-        self.toh_btn_on_icon = QIcon('icons/toolbar/toh_delete.svg')
+        self.toh_btn_off_icon = QIcon(resource_path('icons/toolbar/toh.svg'))
+        self.toh_btn_on_icon = QIcon(resource_path('icons/toolbar/toh_delete.svg'))
 
-        self.toa_btn = QAction(QIcon('icons/toolbar/toa.svg'), 'Transform to Atlas Slice Window', self)
-        self.toh_btn = QAction(QIcon('icons/toolbar/toh.svg'), 'Transform to Histologist Image Window', self)
-        self.check_btn = QAction(QIcon('icons/toolbar/accept.svg'), 'Accept and Transfer', self)
+        self.toa_btn = QAction(QIcon(resource_path('icons/toolbar/toa.svg')), 'Transform to Atlas Slice Window', self)
+        self.toh_btn = QAction(QIcon(resource_path('icons/toolbar/toh.svg')), 'Transform to Histologist Image Window', self)
+        self.check_btn = QAction(QIcon(resource_path('icons/toolbar/accept.svg')), 'Accept and Transfer', self)
 
-        lasso_btn = QAction(QIcon('icons/toolbar/lasso.svg'), 'Polygon Lasso', self)
+        lasso_btn = QAction(QIcon(resource_path('icons/toolbar/lasso.svg')), 'Polygon Lasso', self)
         lasso_btn.setCheckable(True)
 
-        magic_wand_btn = QAction(QIcon('icons/toolbar/magic-wand.svg'), 'Magic Wand', self)
+        magic_wand_btn = QAction(QIcon(resource_path('icons/toolbar/magic-wand.svg')), 'Magic Wand', self)
         magic_wand_btn.setCheckable(True)
 
-        pencil_btn = QAction(QIcon('icons/toolbar/pencil.svg'), 'Pencil', self)
+        pencil_btn = QAction(QIcon(resource_path('icons/toolbar/pencil.svg')), 'Pencil', self)
         pencil_btn.setCheckable(True)
 
-        eraser_btn = QAction(QIcon('icons/toolbar/eraser.svg'), 'Eraser', self)
+        eraser_btn = QAction(QIcon(resource_path('icons/toolbar/eraser.svg')), 'Eraser', self)
         eraser_btn.setCheckable(True)
 
-        mask_btn = QAction(QIcon('icons/toolbar/mask.svg'), 'Mask Maker', self)
+        mask_btn = QAction(QIcon(resource_path('icons/toolbar/mask.svg')), 'Mask Maker', self)
         mask_btn.setCheckable(True)
 
-        probe_btn = QAction(QIcon('icons/toolbar/probe.svg'), 'Probe Marker', self)
+        probe_btn = QAction(QIcon(resource_path('icons/toolbar/probe.svg')), 'Probe Marker', self)
         probe_btn.setCheckable(True)
 
-        triang_btn = QAction(QIcon('icons/toolbar/triangulation.svg'), 'Triangulation', self)
+        triang_btn = QAction(QIcon(resource_path('icons/toolbar/triangulation.svg')), 'Triangulation', self)
         triang_btn.setCheckable(True)
 
-        loc_btn = QAction(QIcon('icons/toolbar/location.svg'), 'Cell Selector', self)
+        loc_btn = QAction(QIcon(resource_path('icons/toolbar/location.svg')), 'Cell Selector', self)
         loc_btn.setCheckable(True)
 
-        ruler_btn = QAction(QIcon('icons/toolbar/ruler.svg'), 'Ruler', self)
+        ruler_btn = QAction(QIcon(resource_path('icons/toolbar/ruler.svg')), 'Ruler', self)
         ruler_btn.setCheckable(True)
 
         self.checkable_btn_dict = {'ruler_btn': ruler_btn,
@@ -136,11 +137,11 @@ class ToolBox(QObject):
 
         self.magic_wand_virus_register = QPushButton()
         self.magic_wand_virus_register.setFocusPolicy(Qt.NoFocus)
-        self.magic_wand_virus_register.setIcon(QIcon('icons/toolbar/virus_register.svg'))
+        self.magic_wand_virus_register.setIcon(QIcon(resource_path('icons/toolbar/virus_register.svg')))
         self.magic_wand_virus_register.setIconSize(QSize(20, 20))
         self.magic_wand_bnd_register = QPushButton()
         self.magic_wand_bnd_register.setFocusPolicy(Qt.NoFocus)
-        self.magic_wand_bnd_register.setIcon(QIcon('icons/toolbar/boundary_register.svg'))
+        self.magic_wand_bnd_register.setIcon(QIcon(resource_path('icons/toolbar/boundary_register.svg')))
         self.magic_wand_bnd_register.setIconSize(QSize(20, 20))
 
         self.magic_wand_wrap = QFrame()
@@ -186,8 +187,8 @@ class ToolBox(QObject):
         self.pencil_path_btn = QPushButton()
         self.pencil_path_btn.setCheckable(True)
         da_icon = QIcon()
-        da_icon.addPixmap(QPixmap("icons/toolbar/closed_path.svg"), QIcon.Normal, QIcon.On)
-        da_icon.addPixmap(QPixmap("icons/toolbar/open_path.svg"), QIcon.Normal, QIcon.Off)
+        da_icon.addPixmap(QPixmap(resource_path("icons/toolbar/closed_path.svg")), QIcon.Normal, QIcon.On)
+        da_icon.addPixmap(QPixmap(resource_path("icons/toolbar/open_path.svg")), QIcon.Normal, QIcon.Off)
         self.pencil_path_btn.setIcon(da_icon)
         self.pencil_path_btn.setIconSize(QSize(20, 20))
         self.pencil_path_btn.clicked.connect(self.pencil_path_btn_clicked)
@@ -250,8 +251,8 @@ class ToolBox(QObject):
         self.lasso_type_btn = QPushButton()
         self.lasso_type_btn.setCheckable(True)
         lt_icon = QIcon()
-        lt_icon.addPixmap(QPixmap('icons/toolbar/outpart.svg'), QIcon.Normal, QIcon.On)
-        lt_icon.addPixmap(QPixmap('icons/toolbar/inpart.svg'), QIcon.Normal, QIcon.Off)
+        lt_icon.addPixmap(QPixmap(resource_path('icons/toolbar/outpart.svg')), QIcon.Normal, QIcon.On)
+        lt_icon.addPixmap(QPixmap(resource_path('icons/toolbar/inpart.svg')), QIcon.Normal, QIcon.Off)
         self.lasso_type_btn.setIcon(lt_icon)
         self.lasso_type_btn.setIconSize(QSize(20, 20))
         self.lasso_type_btn.clicked.connect(self.lasso_type_changed)
@@ -288,8 +289,8 @@ class ToolBox(QObject):
         self.multi_prb_btn = QPushButton()
         self.multi_prb_btn.setCheckable(True)
         mp_icon = QIcon()
-        mp_icon.addPixmap(QPixmap("icons/toolbar/multi_pencil.svg"), QIcon.Normal, QIcon.On)
-        mp_icon.addPixmap(QPixmap("icons/toolbar/single_pencil.svg"), QIcon.Normal, QIcon.Off)
+        mp_icon.addPixmap(QPixmap(resource_path("icons/toolbar/multi_pencil.svg")), QIcon.Normal, QIcon.On)
+        mp_icon.addPixmap(QPixmap(resource_path("icons/toolbar/single_pencil.svg")), QIcon.Normal, QIcon.Off)
         self.multi_prb_btn.setIcon(mp_icon)
         self.multi_prb_btn.setIconSize(QSize(20, 20))
         self.multi_prb_btn.setToolTip('Multi-shanks Switch')
@@ -309,8 +310,8 @@ class ToolBox(QObject):
         self.merge_sites_btn = QPushButton()
         self.merge_sites_btn.setCheckable(True)
         ms_icon = QIcon()
-        ms_icon.addPixmap(QPixmap("icons/toolbar/line_sites.svg"), QIcon.Normal, QIcon.On)
-        ms_icon.addPixmap(QPixmap("icons/toolbar/separate_sites.svg"), QIcon.Normal, QIcon.Off)
+        ms_icon.addPixmap(QPixmap(resource_path("icons/toolbar/line_sites.svg")), QIcon.Normal, QIcon.On)
+        ms_icon.addPixmap(QPixmap(resource_path("icons/toolbar/separate_sites.svg")), QIcon.Normal, QIcon.Off)
         self.merge_sites_btn.setIcon(ms_icon)
         self.merge_sites_btn.setIconSize(QSize(20, 20))
         self.merge_sites_btn.setToolTip('Merge sites')
@@ -329,7 +330,7 @@ class ToolBox(QObject):
 
         self.linear_silicon_list = QPushButton()
         self.linear_silicon_list.setFocusPolicy(Qt.NoFocus)
-        self.linear_silicon_list.setIcon(QIcon('icons/toolbar/list.svg'))
+        self.linear_silicon_list.setIcon(QIcon(resource_path('icons/toolbar/list.svg')))
         self.linear_silicon_list.setIconSize(QSize(20, 20))
         self.linear_silicon_list.setVisible(False)
         self.linear_silicon_list.setToolTip('Linear Silicon Designer')
@@ -369,12 +370,12 @@ class ToolBox(QObject):
         self.triang_vis_btn = QPushButton()
         self.triang_vis_btn.setCheckable(True)
         vis_icon = QIcon()
-        vis_icon.addPixmap(QPixmap("icons/toolbar/eye.svg"), QIcon.Normal, QIcon.On)
-        vis_icon.addPixmap(QPixmap("icons/toolbar/eye_closed.svg"), QIcon.Normal, QIcon.Off)
+        vis_icon.addPixmap(QPixmap(resource_path("icons/toolbar/eye.svg")), QIcon.Normal, QIcon.On)
+        vis_icon.addPixmap(QPixmap(resource_path("icons/toolbar/eye_closed.svg")), QIcon.Normal, QIcon.Off)
         self.triang_vis_btn.setIcon(vis_icon)
         self.triang_vis_btn.setIconSize(QSize(20, 20))
         self.triang_match_bnd = QPushButton()
-        self.triang_match_bnd.setIcon(QIcon('icons/toolbar/matchbnd.svg'))
+        self.triang_match_bnd.setIcon(QIcon(resource_path('icons/toolbar/matchbnd.svg')))
         self.triang_match_bnd.setIconSize(QSize(20, 20))
 
         self.triang_wrap = QFrame()
@@ -416,8 +417,8 @@ class ToolBox(QObject):
         self.cell_selector_btn.setToolTip('select cells manually')
         self.cell_selector_btn.setCheckable(True)
         selector_icon = QIcon()
-        selector_icon.addPixmap(QPixmap("icons/toolbar/cell_select_not.svg"), QIcon.Normal, QIcon.Off)
-        selector_icon.addPixmap(QPixmap("icons/toolbar/cell_select.svg"), QIcon.Normal, QIcon.On)
+        selector_icon.addPixmap(QPixmap(resource_path("icons/toolbar/cell_select_not.svg")), QIcon.Normal, QIcon.Off)
+        selector_icon.addPixmap(QPixmap(resource_path("icons/toolbar/cell_select.svg")), QIcon.Normal, QIcon.On)
         self.cell_selector_btn.setIcon(selector_icon)
         self.cell_selector_btn.setIconSize(QSize(20, 20))
 
@@ -425,13 +426,13 @@ class ToolBox(QObject):
         self.cell_aim_btn.setToolTip('select single cell body area')
         self.cell_aim_btn.setCheckable(True)
         aim_icon = QIcon()
-        aim_icon.addPixmap(QPixmap("icons/toolbar/aim_not.svg"), QIcon.Normal, QIcon.Off)
-        aim_icon.addPixmap(QPixmap("icons/toolbar/aim.svg"), QIcon.Normal, QIcon.On)
+        aim_icon.addPixmap(QPixmap(resource_path("icons/toolbar/aim_not.svg")), QIcon.Normal, QIcon.Off)
+        aim_icon.addPixmap(QPixmap(resource_path("icons/toolbar/aim.svg")), QIcon.Normal, QIcon.On)
         self.cell_aim_btn.setIcon(aim_icon)
         self.cell_aim_btn.setIconSize(QSize(20, 20))
         self.cell_radar_btn = QPushButton()
         self.cell_radar_btn.setToolTip('automatically search for similar cell bodies')
-        self.cell_radar_btn.setIcon(QIcon('icons/toolbar/radar.svg'))
+        self.cell_radar_btn.setIcon(QIcon(resource_path('icons/toolbar/radar.svg')))
         self.cell_radar_btn.setIconSize(QSize(20, 20))
 
         self.cell_count_wrap = QFrame()
@@ -458,7 +459,7 @@ class ToolBox(QObject):
 
         # separator
         self.sep_label = QLabel()
-        self.sep_label.setPixmap(QPixmap('icons/toolbar/handle.png'))
+        self.sep_label.setPixmap(QPixmap(resource_path('icons/toolbar/handle.png')))
 
         # circle
         r = int(self.eraser_size_valt.text())
@@ -472,7 +473,7 @@ class ToolBox(QObject):
         self.tri_line_style = pg.mkPen(color=(128, 128, 128), width=0.5, style=Qt.DashLine)
 
         # ---------------------------- define all cursor shape
-        # self.eraser_cursor = QCursor(QPixmap('icons/eraser_cursor.png'), hotX=7, hotY=27)
+        # self.eraser_cursor = QCursor(QPixmap(resource_path('icons/eraser_cursor.png')), hotX=7, hotY=27)
 
     def update_cell_count_label(self, cell_count_list):
         for layer_index in range(5):
@@ -545,7 +546,6 @@ class ToolBox(QObject):
             self.multi_shanks = True
         else:
             self.multi_shanks = False
-
 
 
 
