@@ -4,7 +4,7 @@ A Python-based GUI for Histological E-data Registration in Brain Space
 
 HERBS is an open source, extensible, intuitive and interactive software platform for image visualisation and image registration. Where the image registration is the process of identifying a spatial transformation that maps images to a template such that corresponding anatomical structures are optimally aligned, or in other words, a voxel-wise ‘correspondence’ is established between the images and template.
 
-HERBS has been tested on Windows 10, MacOSx (Big Sur - Monterey), Linux (Kubuntu 18.04, Ubuntu 22.04 LTS), and as a python application, it should run in all environments supporting python 3.8.10-3.9.16 / 3.9.0 with PyQt5 >= 5.14.2 as a GUI framework. For details, please see HERBS CookBook or Tutorials(most recent update).
+HERBS has been tested on Windows 10, macOS (Big Sur–Monterey), and Linux (Kubuntu 18.04 and Ubuntu 22.04 LTS). The package supports Python 3.8.10 through Python 3.11 with PyQt5 5.15.5 or newer. For details, see the HERBS CookBook or the latest tutorials.
 
 HERBS provides users:
 

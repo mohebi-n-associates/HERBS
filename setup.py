@@ -2,32 +2,13 @@
 @author: Jingyi GF{jingyi.g.fuglstad@gmail.com}
 """
 import os
-import sys
-from sys import platform
 from setuptools import setup, find_packages
-
-
-is_problematic = False
-
-if sys.version_info[:2] < (3, 8) or sys.version_info[:2] > (3, 11):
-    is_problematic = True
-
-if sys.version_info.minor == 8 and sys.version_info.micro < 10:
-    is_problematic = True
-
-if sys.version_info.minor == 9 and sys.version_info.micro == 0:
-    is_problematic = True
-
-if sys.version_info.minor == 10 and sys.version_info.micro > 10:
-    is_problematic = True
-
-if is_problematic:
-    raise RuntimeError("Python version >= 3.8.10 <= 3.10.9 / 3.9.0 required.")
 
 
 # Utility function to read the README file.
 def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+    with open(os.path.join(os.path.dirname(__file__), fname), encoding="utf-8") as handle:
+        return handle.read()
 
 
 CLASSIFIERS = """
@@ -40,10 +21,10 @@ Programming Language :: Python :: 3
 Programming Language :: Python :: 3.8
 Programming Language :: Python :: 3.9
 Programming Language :: Python :: 3.10
+Programming Language :: Python :: 3.11
 Programming Language :: Python :: 3 :: Only
 Topic :: Software Development
 Topic :: Scientific/Engineering
-Typing :: Typed
 Operating System :: Microsoft :: Windows
 Operating System :: POSIX
 Operating System :: Unix
@@ -51,9 +32,7 @@ Operating System :: MacOS
 """
 
 REQUIRES = """
-PyQt5 >= 5.14.2; python_version == "3.8"
-PyQt5 >= 5.15.1; python_version == "3.9"
-PyQt5 >= 5.15.5; python_version == "3.10"
+PyQt5 >= 5.15.5
 aicspylibczi >= 3.0.3
 pyqtgraph == 0.12.3
 PyOpenGL >= 3.1.5
@@ -96,16 +75,16 @@ setup(
     author_email="jingyi.g.fuglstad@gmail.com",
     description="A Python-based GUI for Histological E-data Registration in Brain Space",
     keywords="brain atlas, histological image registration, probe coordinates",
-    url="https://github.com/JingyiGF/HERBS",
+    url="https://github.com/mohebi-n-associates/HERBS",
     packages=find_packages(),
     package_data={"": [_f for _f in PACKAGE_DATA.split("\n") if _f]},
     include_package_data=True,
     long_description=read("README.md"),
     long_description_content_type="text/markdown",
     project_urls={
-        "Bug Tracker": "https://github.com/JingyiGF/HERBS/issues",
+        "Bug Tracker": "https://github.com/mohebi-n-associates/HERBS/issues",
     },
     classifiers=[_f for _f in CLASSIFIERS.split("\n") if _f],
-    python_requires=">=3.8",
+    python_requires=">=3.8.10,<3.12",
     install_requires=[_f for _f in REQUIRES.split("\n") if _f],
 )
