@@ -76,7 +76,7 @@ class LabelTree(QWidget):
         
         self.tree = QTreeWidget(self)
         self.layout.addWidget(self.tree)
-        self.tree.header().setResizeMode(QHeaderView.ResizeToContents)
+        self.tree.header().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tree.headerItem().setText(0, "id")
         self.tree.headerItem().setText(1, "name")
         self.tree.headerItem().setText(2, "color")
@@ -98,7 +98,9 @@ class LabelTree(QWidget):
                 self.clear_labels()
 
             n_labels = len(label_data['index'])
-            self.label_level = np.max([ind for ind in label_data['index'] if ind not in label_data['parent']])
+            if n_labels == 0:
+                raise ValueError('Atlas label data is empty.')
+            self.label_level = int(np.max(label_data['index']))
             self.current_lut = np.zeros((self.label_level + 1, 4), 'i')
             # Pass 1: create every item first so that parent lookups in pass 2
             # do not depend on the order labels appear in the atlas data.
@@ -109,7 +111,6 @@ class LabelTree(QWidget):
                 if label_id <= self.label_level:
                     self.current_lut[label_id] = np.array([color[0], color[1], color[2], 255])
                 da_color = QColor(color[0], color[1], color[2]).name(QColor.HexRgb)
-                da_color = da_color.split('#')[1]
                 name = label_data['label'][i]
                 acronym = label_data['abbrev'][i]
                 if parent < 0:
@@ -142,7 +143,7 @@ class LabelTree(QWidget):
         item.setCheckState(0, Qt.Unchecked)
 
         btn = pg.ColorButton(color=pg.mkColor(color.decode()))
-        btn.defaultColor = color.decode()
+        btn.defaultColor = QColor(btn.color())
         btn.id = label_id
 
         # Item creation and tree attachment are split into two passes (see
@@ -191,7 +192,6 @@ class LabelTree(QWidget):
     def set_label_color(self, label_id, color, recursive=True, emit=True):
         item = self.labels_by_id[label_id]['item']
         btn = self.labels_by_id[label_id]['btn']
-        print(color)
         rgb_color = (color.red(), color.green(), color.blue(), color.alpha())
         self.current_lut[label_id] = np.array([rgb_color[0], rgb_color[1], rgb_color[2], rgb_color[3]])
         with SignalBlock(btn.sigColorChanged, self.item_color_changed):
