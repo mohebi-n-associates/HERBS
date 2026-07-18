@@ -35,6 +35,23 @@ def normalize_atlas_volume(atlas_data):
     return atlas_data / maximum
 
 
+def validate_downsample_factor(factor, volume_shape):
+    """Validate and normalize a mesh downsampling factor for a 3-D volume."""
+    try:
+        factor = int(factor)
+    except (TypeError, ValueError):
+        raise ValueError("Factor must be an integer.")
+
+    shape = np.asarray(volume_shape, dtype=int).reshape(-1)
+    if factor < 2:
+        raise ValueError("Factor must be at least 2.")
+    if shape.shape != (3,) or np.any(shape <= 0):
+        raise ValueError("Atlas data must be a non-empty 3-D volume.")
+    if np.any(shape < factor):
+        raise ValueError("Factor can not be larger than atlas size.")
+    return factor
+
+
 def transform_atlas_volumes(atlas_data, segmentation_data, bregma, axis_info):
     """Transform atlas data, labels, and Bregma into the same axis system.
 

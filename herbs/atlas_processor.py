@@ -16,7 +16,7 @@ import pyqtgraph.opengl as gl
 from .uuuuuu import read_qss_file, make_contour_img, read_excel_file, hex2rgb
 from .obj_items import render_volume, render_small_volume
 from .atlas_loader import process_atlas_raw_data, AtlasLoader, check_data_path_and_load
-from .atlas_transform import transform_atlas_volumes
+from .atlas_transform import transform_atlas_volumes, validate_downsample_factor
 
 
 class CustomerAtlasWorker(QObject):
@@ -153,8 +153,11 @@ class CustomerAtlasWorker(QObject):
             return
         atlas_data = atlas_data - np.min(atlas_data)
         atlas_size = atlas_data.shape
-        if np.any(np.ravel(atlas_size) < self.factor):
-            self.error_occur.emit("Factor can not be larger than atlas size.")
+        try:
+            self.factor = validate_downsample_factor(self.factor, atlas_size)
+        except ValueError as error:
+            self.error_occur.emit(str(error))
+            return
         self.progress.emit(14)
         # laod segmentation data
         segmentation_data, success = check_data_path_and_load(
@@ -539,7 +542,6 @@ class AtlasProcessor(QDialog):
         self.lambda_input3.textChanged.connect(self.lambda_input3_changed)
         self.vox_size_input1.textChanged.connect(self.vox_size_input_changed)
         self.factor_input1.textChanged.connect(self.factor_input_changed)
-        self.factor_input1.editingFinished.connect(self.factor_input_changed)
 
     def dim_combo_changed(self, ax):
         if not self.info_flag:

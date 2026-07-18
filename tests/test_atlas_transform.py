@@ -12,6 +12,17 @@ SPEC.loader.exec_module(atlas_transform)
 
 
 class AtlasTransformTests(unittest.TestCase):
+    def test_downsample_factor_must_fit_all_three_dimensions(self):
+        self.assertEqual(
+            atlas_transform.validate_downsample_factor(2, (2, 10, 20)), 2
+        )
+        with self.assertRaisesRegex(ValueError, "larger than atlas size"):
+            atlas_transform.validate_downsample_factor(3, (2, 10, 20))
+        with self.assertRaisesRegex(ValueError, "at least 2"):
+            atlas_transform.validate_downsample_factor(1, (10, 10, 10))
+        with self.assertRaisesRegex(ValueError, "3-D volume"):
+            atlas_transform.validate_downsample_factor(2, (10, 10))
+
     def test_mask_accepts_3d_and_singleton_4d_inputs(self):
         mask = np.ones((2, 3, 4))
         np.testing.assert_array_equal(
