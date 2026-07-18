@@ -9,6 +9,7 @@ import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 import scipy.ndimage as ndi
 from scipy.interpolate import interp1d, splprep, splev
+from .coordinate_validation import coordinates_in_bounds
 
 
 def read_qss_file(qss_file_name):
@@ -1030,10 +1031,10 @@ def check_loaded_project(project_dict):
 
 
 def check_bounding_contains(points, size):
-    if np.any(points[:, 0] > size[1]) or np.any(points[:, 1] > size[0]):
+    points = np.asarray(points)
+    if points.ndim != 2 or points.shape[1] != 2 or len(points) == 0:
         return False
-    else:
-        return True
+    return coordinates_in_bounds(points, (size[1], size[0]))
 
 
 def obj_data_to_mesh3d(filename):

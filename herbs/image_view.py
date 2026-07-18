@@ -18,6 +18,7 @@ from .widgets_utils import ChannelSelector
 from .image_curves import CurveWidget
 from .uuuuuu import hsv2rgb, gamma_line, color_img, make_color_lut, get_corner_line_from_rect, \
     rotate, rotate_bound, get_tb_size, read_qss_file
+from .layer_validation import image_layer_matches
 
 
 class ImagePageController(QWidget):
@@ -513,21 +514,19 @@ class ImageView(QObject):
 
     #
     def check_img_process_layer_data(self, layer_dict):
-        valid_keys = list(layer_dict.keys())
-        check_res = True
-        if not np.all(['data', 'level', 'size'] in valid_keys):
-            check_res = False
-        if not np.all(layer_dict['size'] == self.image_view.current_img.shape[:2]):
-            check_res = False
-        if layer_dict['level'] != self.image_file.level:
-            check_res = False
-        return check_res
+        if self.current_img is None or self.image_file is None:
+            return False
+        return image_layer_matches(
+            layer_dict,
+            self.current_img.shape[:2],
+            expected_level=self.image_file.level,
+            require_metadata=True,
+        )
 
     def has_loaded_layer_the_same_size(self, layer_dict):
-        check_res = True
-        if not np.all(layer_dict['data'].shape[:2] == self.image_view.current_img.shape[:2]):
-            check_res = False
-        return check_res
+        if self.current_img is None:
+            return False
+        return image_layer_matches(layer_dict, self.current_img.shape[:2])
 
     def save_img_process_data(self):
         data = {'data': self.processing_img,
@@ -638,7 +637,6 @@ class ImageView(QObject):
         self.get_corner_and_lines()
 
     # def clear_curve_widget(self):
-
 
 
 

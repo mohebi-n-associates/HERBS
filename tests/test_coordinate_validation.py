@@ -22,6 +22,11 @@ class CoordinateValidationTests(unittest.TestCase):
             coordinate_validation.coordinates_in_bounds((1, 5, 3), (5, 5, 5))
         )
 
+    def test_rejects_malformed_coordinates(self):
+        self.assertFalse(
+            coordinate_validation.coordinates_in_bounds(np.array([1, 2]), (5, 5, 5))
+        )
+
     def test_accepts_groups_only_when_every_voxel_is_inside(self):
         groups = [np.array([[0, 0, 0], [4, 4, 4]]), np.array([[2, 3, 1]])]
         self.assertTrue(

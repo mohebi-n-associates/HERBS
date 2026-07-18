@@ -6854,56 +6854,75 @@ class HERBS(QMainWindow, FORM_Main):
     # --------------------------------------------------------------------
     def print_em_failed_layer(self, res, layer_link):
         if not res:
-            msg = "Current loaded {} layer is not a wrong type or is not for current image.".format(
+            msg = "The loaded {} layer has the wrong type or image size.".format(
                 layer_link
             )
             self.print_message(msg, self.error_message_color)
-        else:
-            return
+        return res
 
     def set_hist_layer_data(self, layer_dict):
+        if not isinstance(layer_dict, dict) or not {"layer_link", "data"}.issubset(
+            layer_dict
+        ):
+            self.print_em_failed_layer(False, "image")
+            return False
+
         layer_link = layer_dict["layer_link"]
+        required_keys = {
+            "img-process": {"level", "size"},
+            "img-virus": {"color"},
+            "img-mask": {"color"},
+            "img-drawing": {"color"},
+            "img-probe": {"color"},
+            "img-contour": {"color"},
+            "img-cells": {
+                "color",
+                "symbol",
+                "cell_size",
+                "cell_symbol",
+                "cell_layer_index",
+                "cell_count",
+            },
+            "img-overlay": set(),
+        }
+        if layer_link not in required_keys or not required_keys[layer_link].issubset(
+            layer_dict
+        ):
+            self.print_em_failed_layer(False, layer_link)
+            return False
+
         if layer_link == "img-process":
             res = self.image_view.check_img_process_layer_data(layer_dict)
-            self.print_em_failed_layer(res, layer_link)
-            try:
-                self.image_view.processing_img = layer_dict["data"]
-            except KeyError:
-                self.print_em_failed_layer(False, layer_link)
+            if not self.print_em_failed_layer(res, layer_link):
+                return False
+            self.image_view.processing_img = layer_dict["data"]
         elif layer_link == "img-virus":
             res = self.image_view.has_loaded_layer_the_same_size(layer_dict)
-            self.print_em_failed_layer(res, layer_link)
-            try:
-                self.working_img_data[layer_link] = layer_dict["data"]
-                self.virus_lut[1] = layer_dict["color"]
-                self.image_view.img_stacks.image_dict[layer_link].setLookupTable(
-                    self.virus_lut
-                )
-            except KeyError:
-                self.print_em_failed_layer(False, layer_link)
+            if not self.print_em_failed_layer(res, layer_link):
+                return False
+            self.working_img_data[layer_link] = layer_dict["data"]
+            self.virus_lut[1] = layer_dict["color"]
+            self.image_view.img_stacks.image_dict[layer_link].setLookupTable(
+                self.virus_lut
+            )
         elif layer_link == "img-mask":
             res = self.image_view.has_loaded_layer_the_same_size(layer_dict)
-            self.print_em_failed_layer(res, layer_link)
-            try:
-                self.tool_box.magic_color_btn.setColor(layer_dict["color"])
-                self.working_img_data[layer_link] = layer_dict["data"]
-                self.magic_wand_lut[1] = layer_dict["color"]
-                self.image_view.img_stacks.image_dict[layer_link].setLookupTable(
-                    self.magic_wand_lut
-                )
-            except KeyError:
-                self.print_em_failed_layer(False, layer_link)
+            if not self.print_em_failed_layer(res, layer_link):
+                return False
+            self.tool_box.magic_color_btn.setColor(layer_dict["color"])
+            self.working_img_data[layer_link] = layer_dict["data"]
+            self.magic_wand_lut[1] = layer_dict["color"]
+            self.image_view.img_stacks.image_dict[layer_link].setLookupTable(
+                self.magic_wand_lut
+            )
         elif layer_link == "img-drawing":
             res = check_bounding_contains(
                 np.asarray(layer_dict["data"]), self.image_view.img_size
             )
-            self.print_em_failed_layer(res, layer_link)
-            try:
-                self.working_img_data[layer_link] = layer_dict["data"]
-                self.tool_box.pencil_color_btn.setColor(layer_dict["color"])
-            except KeyError:
-                self.print_em_failed_layer(False, layer_link)
-                return
+            if not self.print_em_failed_layer(res, layer_link):
+                return False
+            self.working_img_data[layer_link] = layer_dict["data"]
+            self.tool_box.pencil_color_btn.setColor(layer_dict["color"])
             if np.all(
                 self.working_img_data[layer_link][-1]
                 == self.working_img_data[layer_link][0]
@@ -6915,20 +6934,17 @@ class HERBS(QMainWindow, FORM_Main):
             res = check_bounding_contains(
                 np.asarray(layer_dict["data"]), self.image_view.img_size
             )
-            self.print_em_failed_layer(res, layer_link)
-            try:
-                self.tool_box.probe_color_btn.setColor(layer_dict["color"])
-                self.working_img_data[layer_link] = layer_dict["data"]
-            except KeyError:
-                self.print_em_failed_layer(False, layer_link)
-                return
+            if not self.print_em_failed_layer(res, layer_link):
+                return False
+            self.tool_box.probe_color_btn.setColor(layer_dict["color"])
+            self.working_img_data[layer_link] = layer_dict["data"]
         elif layer_link == "img-contour":
             if not check_bounding_contains(
                 np.asarray(layer_dict["data"]), self.image_view.img_size
             ):
                 msg = "Current loaded img-contour layer is not for current image."
                 self.print_message(msg, self.error_message_color)
-                return
+                return False
             self.contour_color = layer_dict["color"]
             self.working_img_data[layer_link] = layer_dict["data"]
             self.image_view.img_stacks.image_dict[layer_link].setPen(
@@ -6942,7 +6958,7 @@ class HERBS(QMainWindow, FORM_Main):
                     "Current loaded img-cells layer is not for current image.",
                     self.error_message_color,
                 )
-                return
+                return False
             self.tool_box.cell_color_btn.setColor(layer_dict["color"])
             self.working_img_data[layer_link] = layer_dict["data"]
             self.working_img_data["cell_size"] = layer_dict["cell_size"]
@@ -6954,13 +6970,12 @@ class HERBS(QMainWindow, FORM_Main):
             if not np.all(layer_dict["data"].shape[:2] == self.image_view.img_size):
                 msg = "Current loaded img-overlay layer is not the same size as current image."
                 self.print_message(msg, self.error_message_color)
-                return
+                return False
             self.working_img_data[layer_link] = layer_dict["data"]
-        else:
-            return
+        return True
 
     def set_hist_layer_to_hist_view(self, layer_link, vis_data_2d, symbol):
-        if layer_link == "img-proces":
+        if layer_link == "img-process":
             self.image_view.set_data_and_size(vis_data_2d)
         elif layer_link == "img-cells":
             self.image_view.img_stacks.image_dict[layer_link].setData(
@@ -7076,6 +7091,13 @@ class HERBS(QMainWindow, FORM_Main):
                     self.print_message(msg, self.error_message_color)
                     return
 
+                if not isinstance(layer_dict, dict) or "layer_link" not in layer_dict:
+                    self.print_message(
+                        "The selected file is not a valid HERBS layer.",
+                        self.error_message_color,
+                    )
+                    return
+
                 if "img-" in layer_dict["layer_link"]:
                     if self.image_view.current_img is None:
                         self.print_message(
@@ -7083,7 +7105,8 @@ class HERBS(QMainWindow, FORM_Main):
                             self.error_message_color,
                         )
                         return
-                    self.set_hist_layer_data(layer_dict)
+                    if not self.set_hist_layer_data(layer_dict):
+                        return
                     if "cells" in layer_dict["layer_link"]:
                         symbol = layer_dict["symbol"]
                     else:
