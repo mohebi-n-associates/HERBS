@@ -12,6 +12,8 @@ from .coordinate_validation import (
     coordinate_groups_in_bounds,
     coordinates_in_bounds,
 )
+from .probe_reconstruction import build_probe_reconstruction
+from .version import __version__
 
 
 PROBE_COORDINATES_OUTSIDE_ATLAS = 16
@@ -651,6 +653,7 @@ def calculate_probe_info(
     site_face,
     n_hat,
     pre_plan,
+    atlas_metadata=None,
 ):
     """
 
@@ -737,6 +740,28 @@ def calculate_probe_info(
     )
     # print('sites_loc_to_base')
     # print(sites_loc_to_base)
+
+    # Preserve every physical contact independently of the display option that
+    # merges contacts at the same axial depth into one line.
+    if probe_type_name != "Tetrode":
+        contact_loc = get_loc_related_to_start(
+            sites_loc_to_base_temp, probe_length_without_tip_um
+        )
+        contact_pnt, contact_vox = get_pnt_from_loc(
+            pc_sp, contact_loc, n_vec, u_vec, r_hat, bregma, vxsize_um
+        )
+    else:
+        contact_pnt = [np.asarray([pc_ep], dtype=float) for _ in range(4)]
+        contact_vox = [
+            np.asarray([pc_ep + bregma], dtype=float).astype(int) for _ in range(4)
+        ]
+
+    if not coordinate_groups_in_bounds(contact_vox, label_data.shape):
+        return data_dict, PROBE_COORDINATES_OUTSIDE_ATLAS
+
+    contact_labels = [
+        label_data[group[:, 0], group[:, 1], group[:, 2]] for group in contact_vox
+    ]
 
     if merge_sites or probe_type_name == "Tetrode":
         sites_loc_to_base, sites_line_count = merge_sites_into_line(
@@ -837,7 +862,33 @@ def calculate_probe_info(
         "label_acronym": label_acronym,
         "label_color": label_color,
         "vis_data": vis_data,
+        "probe_settings": probe_settings,
+        "site_face": site_face,
+        "display_sites_merged": bool(merge_sites),
     }
+
+    atlas_metadata = atlas_metadata or {}
+    data_dict["reconstruction"] = build_probe_reconstruction(
+        insertion_bregma_vox=pc_sp,
+        terminus_bregma_vox=pc_ep,
+        insertion_vox_index=pv_sp,
+        terminus_vox_index=pv_ep,
+        contact_bregma_vox=contact_pnt,
+        contact_vox_index=contact_vox,
+        contact_structure_ids=contact_labels,
+        contact_local_from_tip_base_um=sites_loc_to_base_temp,
+        probe_length_um=probe_length_with_tip_um,
+        probe_settings=probe_settings,
+        site_face=site_face,
+        voxel_size_um=vxsize_um,
+        bregma_herbs_vox=bregma,
+        herbs_atlas_shape=label_data.shape,
+        label_info=label_info,
+        axis_info=atlas_metadata.get("axis_info"),
+        atlas_identifier=atlas_metadata.get("identifier"),
+        atlas_path=atlas_metadata.get("path"),
+        software_version=__version__,
+    )
     return data_dict, error_index
 
 

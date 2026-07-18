@@ -5817,6 +5817,34 @@ class HERBS(QMainWindow, FORM_Main):
             self.view3d.addItem(self.object_3d_list[-1])
 
     # probe related functions
+    def get_probe_atlas_metadata(self):
+        """Return the atlas transform required for a self-contained probe export."""
+        if self.current_atlas != "volume":
+            return None, (
+                "Switch to the volume atlas before merging a probe so its "
+                "three-dimensional coordinate transform can be exported."
+            )
+        atlas_path = self.volume_atlas_path
+        if not atlas_path or not os.path.isdir(atlas_path):
+            return None, "A volume atlas must be loaded before merging a probe."
+
+        axis_path = os.path.join(atlas_path, "atlas_axis_info.pkl")
+        if not os.path.exists(axis_path):
+            return None, (
+                "The atlas has no axis metadata. Re-process the atlas before "
+                "merging the probe so native atlas coordinates can be exported."
+            )
+
+        axis_info, error = check_loading_pickle_file(axis_path)
+        if error is not None:
+            return None, "Unable to load atlas axis metadata: {}".format(error)
+
+        return {
+            "identifier": os.path.basename(os.path.normpath(atlas_path)),
+            "path": os.path.abspath(atlas_path),
+            "axis_info": axis_info,
+        }, None
+
     def merge_probes(self):
         if self.num_windows == 4:
             msg = "Can not merge probe pieces with all slice windows turned on."
@@ -5836,6 +5864,10 @@ class HERBS(QMainWindow, FORM_Main):
 
         label_data = np.transpose(self.atlas_view.atlas_label, (1, 2, 0))[:, :, ::-1]
         probe_setting_data = self.probe_settings.get_settings()
+        atlas_metadata, atlas_error = self.get_probe_atlas_metadata()
+        if atlas_error is not None:
+            self.print_message(atlas_error, self.error_message_color)
+            return
 
         merge_sites = self.tool_box.merge_sites
         if self.image_view.image_file is None:
@@ -5871,6 +5903,7 @@ class HERBS(QMainWindow, FORM_Main):
                     site_face_vec[i],
                     n_hat,
                     True,
+                    atlas_metadata,
                 )
 
                 if error_index != 0:
@@ -5909,6 +5942,7 @@ class HERBS(QMainWindow, FORM_Main):
                     self.site_face,
                     None,
                     False,
+                    atlas_metadata,
                 )
 
                 if error_index != 0:
@@ -6584,6 +6618,22 @@ class HERBS(QMainWindow, FORM_Main):
             self.print_message(msg, self.error_message_color)
             return
 
+        if object_type == "probe":
+            incomplete = [
+                self.object_ctrl.obj_name[index]
+                for index in valid_index
+                if "reconstruction" not in self.object_ctrl.obj_data[index]
+            ]
+            if incomplete:
+                self.print_message(
+                    "Re-merge older probe objects before exporting them so atlas "
+                    "and contact reconstruction metadata are included: {}".format(
+                        ", ".join(incomplete)
+                    ),
+                    self.error_message_color,
+                )
+                return
+
         self.print_message(
             "Saving {} objects ...".format(object_type), self.normal_color
         )
@@ -6612,6 +6662,17 @@ class HERBS(QMainWindow, FORM_Main):
     def save_current_object(self):
         if self.object_ctrl.current_obj_index is None:
             self.print_message("No object is created ...", self.error_message_color)
+            return
+        current_index = self.object_ctrl.current_obj_index
+        if (
+            self.object_ctrl.obj_type[current_index] == "merged probe"
+            and "reconstruction" not in self.object_ctrl.obj_data[current_index]
+        ):
+            self.print_message(
+                "Re-merge this older probe before exporting it so atlas and "
+                "contact reconstruction metadata are included.",
+                self.error_message_color,
+            )
             return
         file_name = QFileDialog.getSaveFileName(
             self,

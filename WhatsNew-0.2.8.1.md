@@ -7,13 +7,14 @@ HERBS 0.2.8.1 is a reliability, security, and maintainability release. It does n
 ## Highlights
 
 - Correct and consistent atlas, segmentation, boundary, Bregma, and probe coordinates.
+- Self-contained merged-probe exports with complete atlas and contact-coordinate metadata.
 - A safe, versioned HERBS archive format for user-created project and data files.
 - Deterministic image and atlas loading with clearer failure handling.
 - Atomic, HTTPS-only atlas downloads that do not replace valid files with partial data.
 - Fixed label, layer, cell-detection, probe-eraser, and slice-registration behavior.
 - Supported packaging for Python 3.8.10 through 3.11, including a console launcher.
 - Package resources and preferences no longer depend on or modify the process working directory.
-- 51 regression tests plus continuous integration across all supported Python versions.
+- 55 regression tests plus continuous integration across all supported Python versions.
 
 ## Atlas and Coordinate Correctness
 
@@ -28,6 +29,20 @@ An unspecified Bregma coordinate is now converted to the midpoint of the origina
 Probe insertion points, shank columns, and recording sites are now validated against every atlas dimension. Negative coordinates and coordinates equal to an axis size are rejected instead of being accepted by NumPy as wrapped or out-of-range indexes.
 
 This prevents probes near an atlas edge from silently sampling the wrong anatomy or raising an indexing exception later in the calculation.
+
+### Self-contained probe reconstruction
+
+New merged-probe objects contain a versioned `reconstruction` block so the probe can be analyzed later without reopening the original HERBS project. It records:
+
+- HERBS version, probe settings, site face, and contact-order definition.
+- Atlas identifier, voxel resolution, HERBS and source-atlas shapes, the selected Bregma, and the complete invertible axis transform.
+- The atlas label lookup used during reconstruction.
+- Insertion and geometric-tip positions in HERBS voxels, Bregma-relative micrometres, source-atlas voxels, and source-atlas micrometres.
+- An always-unmerged contact table with stable flat indexes, column and within-column indexes, probe-local positions, distance from the geometric tip and insertion point, anatomical structure IDs and names, and both HERBS and source-atlas coordinates.
+
+For a standard Allen CCFv3 2017 atlas, the source coordinate fields are also exposed explicitly as `allen_ccf_vox` and `allen_ccf_um` in `[AP, DV, LR]` order. Contact ordering is column-major, and `index_in_column == 0` identifies the contact nearest the geometric tip. This ordering describes the HERBS geometric model; it intentionally does not claim to be a Neuropixels acquisition-channel or physical-electrode ID.
+
+The reconstruction table retains every modeled contact even when the display option to merge sites at the same depth is enabled. The full atlas intensity and annotation volumes are not duplicated into every probe file; the exact coordinate transform, label lookup, and annotation sampled at every contact are included because those are sufficient to reconstruct the exported probe coordinates and regions.
 
 ### Allen atlas boundaries
 
@@ -184,7 +199,7 @@ Focused modules were extracted for atlas transforms, coordinate checks, slice an
 
 Version 0.2.8.1 includes:
 
-- 51 automated regression tests.
+- 55 automated regression tests.
 - Headless GUI construction and resource-path smoke testing.
 - Python source compilation checks.
 - Targeted Ruff checks for syntax errors and undefined names.
@@ -203,6 +218,8 @@ Version 0.2.8.1 includes:
 2. If prompted, select your atlas folder once so it can be saved in the new user configuration file.
 
 3. Open important legacy `.pkl` project or data files and save them in the new HERBS format.
+
+   A previously merged probe does not contain the new atlas reconstruction metadata. Load its project with the same atlas and merge the probe pieces again before exporting a new `.herbsobj`.
 
 4. If you automate HERBS file handling, update filters and scripts to recognize the new extensions listed above.
 
