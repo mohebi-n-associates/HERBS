@@ -18,6 +18,7 @@ from .atlas_loader import process_atlas_raw_data
 from .uuuuuu import hex2rgb, obj_data_to_mesh3d, make_contour_img
 from .obj_items import render_volume, render_small_volume
 from .atlas_downloader import DownloadThread
+from .atlas_transform import make_boundary_dict
 
 
 class WorkerProcessAllen(QObject):
@@ -278,13 +279,9 @@ class WorkerProcessAllen(QObject):
         outfile_ct.close()
         self.progress.emit(100)
 
-        # boundary = {'s_contour': sagital_contour_img,
-        #             'c_contour': coronal_contour_img,
-        #             'h_contour': horizontal_contour_img}
-        #
-        # self.boundary = {'data': boundary}
-
-        # self.boundary = make_atlas_label_contour(self.saving_folder, self.segmentation_data)
+        self.boundary = make_boundary_dict(
+            sagital_contour_img, coronal_contour_img, horizontal_contour_img
+        )
 
         # target = os.path.join(self.saving_folder, 'atlas_labels.pkl')
         # if not os.path.exists(target):
@@ -658,6 +655,4 @@ class AllenDownloader(QDialog):
             event.accept()
         else:
             event.ignore()
-
-
 

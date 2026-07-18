@@ -12,6 +12,22 @@ SPEC.loader.exec_module(atlas_transform)
 
 
 class AtlasTransformTests(unittest.TestCase):
+    def test_boundary_volumes_are_exposed_with_loader_keys(self):
+        boundary = atlas_transform.make_boundary_dict(
+            np.zeros((2, 3, 4)), np.ones((2, 3, 4)), np.full((2, 3, 4), 2)
+        )
+
+        self.assertEqual(
+            set(boundary), {"s_contour", "c_contour", "h_contour"}
+        )
+        self.assertEqual(boundary["h_contour"][0, 0, 0], 2)
+
+    def test_boundary_volumes_must_share_a_shape(self):
+        with self.assertRaises(ValueError):
+            atlas_transform.make_boundary_dict(
+                np.zeros((2, 2, 2)), np.zeros((2, 2, 2)), np.zeros((3, 2, 2))
+            )
+
     def test_volume_labels_and_bregma_receive_identical_transform(self):
         labels = np.arange(2 * 3 * 4).reshape(2, 3, 4)
         atlas = labels.astype(float) + 0.5

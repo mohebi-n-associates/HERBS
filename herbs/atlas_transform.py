@@ -3,6 +3,18 @@
 import numpy as np
 
 
+def make_boundary_dict(sagittal, coronal, horizontal):
+    """Collect the three atlas boundary volumes after validating alignment."""
+    shapes = {np.shape(sagittal), np.shape(coronal), np.shape(horizontal)}
+    if len(shapes) != 1:
+        raise ValueError("Atlas boundary volumes must have matching shapes.")
+    return {
+        "s_contour": sagittal,
+        "c_contour": coronal,
+        "h_contour": horizontal,
+    }
+
+
 def transform_atlas_volumes(atlas_data, segmentation_data, bregma, axis_info):
     """Transform atlas data, labels, and Bregma into the same axis system.
 
