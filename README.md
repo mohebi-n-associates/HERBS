@@ -19,7 +19,7 @@ HERBS provides users:
 Clone (or download) this repository and install it with `pip`:
 
 ```bash
-$ git clone https://github.com/JingyiGF/HERBS.git
+$ git clone https://github.com/mohebi-n-associates/HERBS.git
 $ cd HERBS
 $ pip install .
 ```
@@ -115,9 +115,9 @@ fullName = '/System/Library/Frameworks/OpenGL.framework/OpenGL'
 - If you face to these kinds of problems, the easiest way to install HERBS is to create a new environment and install HERBS without previous installation of any dependencies.
 
 ### 
-Please report your issues: https://github.com/JingyiGF/HERBS/issues. Please have a good description (maybe a screenshot or an error message). Any feedback welcome!
+Please report your issues: https://github.com/mohebi-n-associates/HERBS/issues. Please have a good description (maybe a screenshot or an error message). Any feedback welcome!
 
-Please feel free to start any discussion: https://github.com/JingyiGF/HERBS/discussions.
+Please feel free to start any discussion: https://github.com/mohebi-n-associates/HERBS/discussions.
 
 ## Finally
 HERBS is 'always' in development, please check updates every time before you use it.
