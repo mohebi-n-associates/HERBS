@@ -111,6 +111,7 @@ from .obj_items import (
 )
 from .about_herbs import AboutHERBSWindow
 from .persistence import save_herbs_file
+from .cell_detection import select_detection_channel
 
 
 script_dir = dirname(realpath(__file__))
@@ -2763,53 +2764,60 @@ class HERBS(QMainWindow, FORM_Main):
             return
 
         locs = np.asarray(self.working_img_data["img-blob"]).astype(int)
+        if not check_bounding_contains(locs, self.image_view.img_size):
+            self.print_message(
+                "The selected blob extends outside the current image.",
+                self.error_message_color,
+            )
+            return
         da_width = np.max(locs[:, 0]) - np.min(locs[:, 0]) + 1
         da_height = np.max(locs[:, 1]) - np.min(locs[:, 1]) + 1
         small_img = np.zeros((da_height, da_width), "uint8")
         small_locs = locs - np.array([np.min(locs[:, 0]), np.min(locs[:, 1])])
         small_img[small_locs[:, 1], small_locs[:, 0]] = 1
-        ct, ht = cv2.findContours(
+        contours, _ = cv2.findContours(
             small_img, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE
         )
-        cnt = ct[0]
+        if not contours:
+            return
+        cnt = contours[0]
         da_moment = cv2.moments(cnt)
-        center_x = int(da_moment["m10"] / da_moment["m00"])
-        center_y = int(da_moment["m01"] / da_moment["m00"])
         da_area = cv2.contourArea(cnt)
         da_perimeter = cv2.arcLength(cnt, True)
+        if da_moment["m00"] == 0 or da_area <= 0 or da_perimeter <= 0:
+            self.print_message(
+                "Select a larger cell-shaped region before running detection.",
+                self.error_message_color,
+            )
+            return
 
         da_circularity = 4 * np.pi * da_area / (da_perimeter**2)
 
         params = cv2.SimpleBlobDetector_Params()
         # Change thresholds
         params.filterByArea = True
-        params.minArea = da_area - 1
-        params.maxArea = da_area + 1
+        params.minArea = max(1, da_area - 1)
+        params.maxArea = max(params.minArea + 1, da_area + 1)
         params.filterByCircularity = True
-        params.minCircularity = da_circularity
+        params.minCircularity = min(1, max(0, da_circularity))
         params.filterByConvexity = True
         params.minConvexity = 0.87
         params.filterByInertia = True
         params.minInertiaRatio = 0.01
 
-        temp = self.image_view.current_img.copy()
-        if self.image_view.image_file.is_rgb:
-            if self.image_view.current_mode == "rgb":
-                temp = cv2.cvtColor(temp, cv2.COLOR_RGB2GRAY)
-                layer_ind = 0
-        else:
-            da_layer = [ind for ind in range(4) if self.image_view.channel_visible[ind]]
-            n_layers = len(da_layer)
-            if n_layers == 0:
-                return
-            if n_layers > 1:
-                return
-            temp = temp[:, :, da_layer[0]]
-            layer_ind = da_layer[0] + 1
+        try:
+            temp, layer_ind = select_detection_channel(
+                self.image_view.current_img,
+                self.image_view.image_file.is_rgb,
+                self.image_view.channel_visible,
+            )
+        except ValueError as exc:
+            self.print_message(str(exc), self.error_message_color)
+            return
 
         da_colors = temp[locs[:, 1], locs[:, 0]]
-        params.minThreshold = np.min(da_colors)
-        params.maxThreshold = np.max(da_colors)
+        params.minThreshold = float(np.min(da_colors))
+        params.maxThreshold = float(min(256, np.max(da_colors) + 1))
 
         if int(opencv_ver[0]) < 3:
             detector = cv2.SimpleBlobDetector(params)
@@ -4799,6 +4807,7 @@ class HERBS(QMainWindow, FORM_Main):
         self.layer_ctrl.layer_list[
             self.layer_ctrl.current_layer_index[0]
         ].set_thumbnail_data(res)
+        return res
 
     def atlas_stacks_clicked(self, pos):
         # print('atlas clicked')
@@ -4871,7 +4880,9 @@ class HERBS(QMainWindow, FORM_Main):
                 return
             da_link = self.layer_ctrl.layer_link[self.layer_ctrl.current_layer_index[0]]
             if da_link == "atlas-probe":
-                self.atlas_erasing_probe(pos)
+                res = self.atlas_erasing_probe(pos)
+                if res is None:
+                    return
             else:
                 if self.current_atlas == "volume":
                     return
