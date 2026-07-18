@@ -8,6 +8,13 @@ import colorsys
 import pyqtgraph as pg
 from scipy.interpolate import interp1d, splprep, splev
 from .uuuuuu import rotation_z, rotation_x, rotation_y
+from .coordinate_validation import (
+    coordinate_groups_in_bounds,
+    coordinates_in_bounds,
+)
+
+
+PROBE_COORDINATES_OUTSIDE_ATLAS = 16
 
 
 def get_closest_point_to_line(p0, r, p):
@@ -170,14 +177,17 @@ def correct_start_pnt(
     error_index = 0
     # print('start_vox', start_vox)
     direction = direction / np.linalg.norm(direction)
-    check_vec = label_data[int(start_vox[0]), int(start_vox[1]), :]
+    if not coordinates_in_bounds(start_vox, label_data.shape):
+        return start_pnt.copy(), PROBE_COORDINATES_OUTSIDE_ATLAS
+    check_vox = start_vox.astype(int)
+
+    check_vec = label_data[check_vox[0], check_vox[1], :]
     top_vox = np.where(check_vec != 0)[0]
     # print(np.where(check_vec != 0))
     if len(top_vox) == 0:
-        print("wrong")
+        return start_pnt.copy(), PROBE_COORDINATES_OUTSIDE_ATLAS
     else:
         top_vox = top_vox[-1]
-    check_vox = start_vox.astype(int)
     new_sp = start_pnt.copy()
 
     # if int(start_vox[2]) < top_vox:
@@ -228,8 +238,8 @@ def correct_start_pnt(
             new_sp = start_pnt - sign_flag * stop_steps * direction
             check_vox = new_sp + bregma
             check_vox = check_vox.astype(int)
-            if np.any(check_vox >= np.ravel(label_data.shape)) or np.any(check_vox) < 0:
-                error_index = 12
+            if not coordinates_in_bounds(check_vox, label_data.shape):
+                error_index = PROBE_COORDINATES_OUTSIDE_ATLAS
                 break
             enter_label = label_data[check_vox[0], check_vox[1], check_vox[2]]
             enter_condition = (enter_label == 0) if z_diff >= 1 else (enter_label != 0)
@@ -686,7 +696,7 @@ def calculate_probe_info(
         label_data, pc_start_pnt, pc_start_vox, direction, bregma, verbose=True
     )
     if error_index != 0:
-        return data_dict, 15
+        return data_dict, error_index
 
     pc_ep, probe_length_with_tip_um, probe_length_without_tip_um = correct_end_point(
         pc_sp,
@@ -757,6 +767,9 @@ def calculate_probe_info(
     # print('column_vox')
     # print(column_vox)
 
+    if not coordinate_groups_in_bounds(column_vox, label_data.shape):
+        return data_dict, PROBE_COORDINATES_OUTSIDE_ATLAS
+
     fine_label_mat = get_fine_label_matrix(column_vox, label_data, verbose=False)
     group_mat, group_id_label = group_labels(fine_label_mat)
     label_names, label_acronym, label_color = get_label_name(label_info, group_id_label)
@@ -778,6 +791,9 @@ def calculate_probe_info(
         sites_pnt = [np.array([pc_ep])]
         sites_vox_temp = sites_pnt[0] + bregma
         sites_vox = [sites_vox_temp.astype(int)]
+
+    if not coordinate_groups_in_bounds(sites_vox, label_data.shape):
+        return data_dict, PROBE_COORDINATES_OUTSIDE_ATLAS
 
     sites_label = []
     for i in range(len(sites_vox)):
