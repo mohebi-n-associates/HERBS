@@ -17,6 +17,10 @@ class PackagingMetadataTests(unittest.TestCase):
         self.assertEqual(metadata["python_requires"], ">=3.8.10,<3.12")
         self.assertIn("PyQt5 >= 5.15.5", metadata["install_requires"])
         self.assertFalse(
+            any(requirement.startswith(("h5py", "tables"))
+                for requirement in metadata["install_requires"])
+        )
+        self.assertFalse(
             any(requirement.startswith("PyQt5") and ";" in requirement
                 for requirement in metadata["install_requires"])
         )

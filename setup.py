@@ -54,8 +54,6 @@ tifffile >= 2021.11.2
 pandas >= 1.3.5
 natsort >= 8.0.2
 imagecodecs >= 2022.2.22
-h5py >= 3.7.0
-tables >= 3.7.0
 """
 
 PACKAGE_DATA = """
