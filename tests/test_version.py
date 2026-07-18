@@ -16,7 +16,7 @@ class VersionTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def test_public_package_version_uses_the_canonical_value(self):
-        self.assertEqual(__version__, "0.2.8")
+        self.assertEqual(__version__, "0.2.8.1")
         self.assertEqual(herbs.__version__, __version__)
 
     def test_about_dialog_reports_version_and_current_repository(self):
