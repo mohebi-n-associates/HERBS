@@ -15,6 +15,7 @@ from .label_tree import LabelTree
 from .uuuuuu import read_qss_file, get_corner_line_from_rect, get_slice_atlas_coord, make_contour_img,  \
     rotate_base_points, rotation_x, rotation_y, rotation_z
 from .probe_utiles import get_tilt_sign#, get_direction_rotation
+from .slice_validation import slice_info_is_ready
 
 
 class PageController(QWidget):
@@ -552,10 +553,9 @@ class AtlasView(QObject):
         self.slice_width = slice_info.width
         self.slice_height = slice_info.height
         self.slice_distance = slice_info.distance
-        if self.slice_height == 0 or self.slice_width == 0 or self.slice_distance == 0 or not self.slice_bregma:
-            self.slice_info_ready = False
-        else:
-            self.slice_info_ready = True
+        self.slice_info_ready = slice_info_is_ready(
+            self.slice_width, self.slice_height, self.slice_distance, self.slice_bregma
+        )
 
     def save_slice_data_and_info(self):
         data = {'data': self.slice_image_data,
@@ -574,7 +574,9 @@ class AtlasView(QObject):
         self.slice_height = slice_data['height']
         self.slice_distance = slice_data['distance']
         self.slice_bregma = slice_data['Bregma']
-        self.slice_info_ready = slice_data['ready']
+        self.slice_info_ready = slice_info_is_ready(
+            self.slice_width, self.slice_height, self.slice_distance, self.slice_bregma
+        )
         self.set_slice_data(img_data)
 
     def get_slice_coords(self, ruler_data):
@@ -583,10 +585,9 @@ class AtlasView(QObject):
         return x, y, z
 
     def check_info_ready(self):
-        if self.slice_height == 0 or self.slice_width == 0 or self.slice_distance == 0:
-            self.slice_info_ready = False
-        else:
-            self.slice_info_ready = True
+        self.slice_info_ready = slice_info_is_ready(
+            self.slice_width, self.slice_height, self.slice_distance, self.slice_bregma
+        )
 
     def clear_slice_info(self):
         if self.slice_image_data is not None:
@@ -1346,7 +1347,6 @@ class AtlasView(QObject):
     def clear_atlas(self):
         self.clear_volume_atlas()
         self.clear_slice_atlas()
-
 
 
 
