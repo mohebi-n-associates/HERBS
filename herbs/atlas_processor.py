@@ -16,6 +16,7 @@ import pyqtgraph.opengl as gl
 from .uuuuuu import read_qss_file, make_contour_img, read_excel_file, hex2rgb
 from .obj_items import render_volume, render_small_volume
 from .atlas_loader import process_atlas_raw_data, AtlasLoader, check_data_path_and_load
+from .atlas_transform import transform_atlas_volumes
 
 
 class CustomerAtlasWorker(QObject):
@@ -202,20 +203,11 @@ class CustomerAtlasWorker(QObject):
         n_unique_labels = len(unique_label)
         self.progress.emit(35)
 
-        if self.axis_info["direction_change"][0]:
-            segmentation_data = segmentation_data[::-1, :, :]
-            atlas_data = atlas_data[::-1, :, :]
-        self.progress.emit(36)
-        if self.axis_info["direction_change"][1]:
-            segmentation_data = segmentation_data[:, ::-1, :]
-            atlas_data = atlas_data[:, ::-1, :]
-        self.progress.emit(37)
-        if self.axis_info["direction_change"][2]:
-            segmentation_data = segmentation_data[:, :, ::-1]
-            atlas_data = atlas_data[:, :, ::-1]
+        atlas_data, segmentation_data, b_val = transform_atlas_volumes(
+            atlas_data, segmentation_data, self.b_val, self.axis_info
+        )
         self.progress.emit(38)
 
-        segmentation_data = np.transpose(segmentation_data, self.axis_info["to_HERBS"])
         segmentation_data = segmentation_data.astype(int)
         # print(segmentation_data.shape)
         self.progress.emit(39)
@@ -226,22 +218,6 @@ class CustomerAtlasWorker(QObject):
         pickle.dump(segment, outfile)
         outfile.close()
         self.progress.emit(42)
-
-        new_atlas_shape = atlas_data.shape
-        b_val = np.ravel(self.b_val)[np.array(self.axis_info["to_HERBS"])]
-        if b_val[0] == 0:
-            b_val[0] = int(new_atlas_shape[0] / 2)
-        self.progress.emit(43)
-        if b_val[1] == 0:
-            b_val[1] = int(new_atlas_shape[1] / 2)
-        self.progress.emit(44)
-
-        for i in range(3):
-            if self.axis_info["direction_change"][i]:
-                b_val[i] = new_atlas_shape[i] - 1 - b_val[i]
-
-        if b_val[2] == 0:
-            b_val[2] = new_atlas_shape[2] - 1 - b_val[2]
 
         atlas_info = [
             {
