@@ -39,6 +39,8 @@ $ pip install . --upgrade
 
 Please always use the newest version of HERBS.
 
+See [What’s New in HERBS 0.2.8.1](WhatsNew-0.2.8.1.md) for the release details and upgrade notes.
+
 <details>
 <summary>Downloaded a ZIP instead of cloning?</summary>
 
