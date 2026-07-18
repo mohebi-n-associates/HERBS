@@ -10,6 +10,7 @@ import pyqtgraph.opengl as gl
 import scipy.ndimage as ndi
 from scipy.interpolate import interp1d, splprep, splev
 from .coordinate_validation import coordinates_in_bounds
+from .persistence import load_legacy_pickle
 
 
 def read_qss_file(qss_file_name):
@@ -18,22 +19,7 @@ def read_qss_file(qss_file_name):
 
 
 def check_loading_pickle_file(file_path):
-    layer_dict, msg = None, None
-    try:
-        infile = open(file_path, "rb")
-        layer_dict = pickle.load(infile)
-        infile.close()
-    except OSError:
-        msg = "OSError: possible reason - disk full, please contact maintainers."
-        return msg
-    except (pickle.PickleError, pickle.UnpicklingError):
-        msg = "Pickling error, please check your file or contact maintainers."
-        return msg
-    except EOFError:
-        msg = "EOFError: possible reason - suspecting loading a broken file, please contact maintainers."
-        return msg
-
-    return layer_dict, msg
+    return load_legacy_pickle(file_path)
 
 
 def read_excel_file(file_path):
