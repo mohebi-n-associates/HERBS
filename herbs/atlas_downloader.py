@@ -67,6 +67,8 @@ class WorkerProcessData(QObject):
         self.boundary = None
         self.small_mesh_list = None
         self.mesh_data = None
+        self.success = False
+        self.message = None
 
     def set_data(self, saving_folder, data_local, segmentation_local, mask_local, b_val, l_val, vox_size):
         self.saving_folder = saving_folder
@@ -95,6 +97,7 @@ class WorkerProcessData(QObject):
                                    segmentation_file=self.segmentation_local, mask_file=self.mask_local,
                                    bregma_coordinates=self.b_val, lambda_coordinates=self.l_val,
                                    voxel_size=self.vox_size)
+        self.message = msg
 
         if msg == 'Atlas loaded successfully.':
             self.progress.emit(40)
@@ -133,6 +136,7 @@ class WorkerProcessData(QObject):
             outfile.close()
 
             self.progress.emit(100)
+            self.success = True
 
         self.finished.emit()
 
@@ -297,6 +301,13 @@ class AtlasDownloader(QDialog):
 
     def on_finish(self):
         self.thread.quit()
+        if not self.worker.success:
+            self.continue_process = False
+            QMessageBox.warning(
+                self,
+                'Atlas processing failed',
+                self.worker.message or 'Atlas processing did not complete.',
+            )
         self.close()
 
     def closeEvent(self, event):
@@ -314,5 +325,4 @@ class AtlasDownloader(QDialog):
     #         self.close()
     #     else:
     #         return
-
 

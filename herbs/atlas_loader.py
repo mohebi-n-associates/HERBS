@@ -16,6 +16,8 @@ from PyQt5.QtWidgets import *
 
 from .uuuuuu import make_contour_img, make_atlas_label_contour
 from .obj_items import render_volume, render_small_volume
+from .atlas_transform import normalize_atlas_volume, prepare_atlas_mask
+from .persistence import load_legacy_pickle
 
 
 def _make_label_info_data_waxholm_rat(label_file_path, excel_file_path):
@@ -118,25 +120,24 @@ def _make_label_info_data_waxholm_rat(label_file_path, excel_file_path):
 
 
 def check_data_path_and_load(file_path):
-    success = True
-    filename, file_extension = os.path.splitext(file_path)
+    data = None
+    _, file_extension = os.path.splitext(file_path)
+    file_extension = file_extension.lower()
     if file_extension == '.pkl':
-        try:
-            infile = open(file_path, 'rb')
-            data = pickle.load(infile)
-            infile.close()
-        except (IndexError, AttributeError, IOError, OSError):
-            success = False
+        data, error = load_legacy_pickle(file_path)
+        success = error is None
     elif file_extension == '.nrrd':
         try:
-            data, header = nrrd.read(file_path)
-        except (IndexError, AttributeError, IOError, OSError):
+            data, _ = nrrd.read(file_path)
+            success = True
+        except Exception:
             success = False
     else:
         try:
             data_file = nib.load(file_path)
             data = data_file.get_fdata()
-        except (IndexError, AttributeError, IOError, OSError):
+            success = True
+        except Exception:
             success = False
     return data, success
 
@@ -166,9 +167,15 @@ def load_mask_file(atlas_folder, mask_file=None):
                 msg_flag = 0
                 mask_data = None
             else:
-                msg = 'Mask data loaded successfully.'
-                msg_flag = 1
-                mask_data = mask_data[:, :, :, 0]  # ????? check data again when you have time, dear
+                if mask_data.ndim == 4 and mask_data.shape[-1] == 1:
+                    mask_data = mask_data[..., 0]
+                if mask_data.ndim != 3:
+                    msg = 'Mask data must be a 3-D volume.'
+                    msg_flag = 0
+                    mask_data = None
+                else:
+                    msg = 'Mask data loaded successfully.'
+                    msg_flag = 1
         else:
             msg = 'Mask path not exist.'
             msg_flag = 0
@@ -188,6 +195,10 @@ def process_segmentation_data(atlas_folder, segmentation_path, mask_data):
         msg_flag = 0
     else:
         if mask_data is not None:
+            try:
+                mask_data = prepare_atlas_mask(mask_data, segmentation_data.shape)
+            except ValueError as exc:
+                return str(exc), 0
             # make segmentation with mask
             for i in range(len(mask_data)):
                 segmentation_data[i][mask_data[i] == 0] = 0
@@ -217,14 +228,14 @@ def process_atlas_data(atlas_folder, atlas_path, mask_data,
 
         new_atlas_data = atlas_data.copy()
         if mask_data is not None:
+            try:
+                mask_data = prepare_atlas_mask(mask_data, new_atlas_data.shape)
+            except ValueError as exc:
+                return str(exc), 0
             # make atlas with mask
-            new_atlas_data = new_atlas_data - np.min(new_atlas_data)
             for i in range(len(mask_data)):
                 new_atlas_data[i][mask_data[i] == 0] = 0
-            new_atlas_data = new_atlas_data / np.max(new_atlas_data)
-        else:
-            new_atlas_data = new_atlas_data - np.min(new_atlas_data)
-            new_atlas_data = new_atlas_data / np.max(new_atlas_data)
+        new_atlas_data = normalize_atlas_volume(new_atlas_data)
 
         atlas_info = [
             {'name': 'anterior', 'values': np.arange(new_atlas_data.shape[0]) * voxel_size, 'units': 'um'},
@@ -285,7 +296,22 @@ def process_contour_data(segmentation_data, dim_index=0):
 
 def process_atlas_raw_data(atlas_folder, data_file=None, segmentation_file=None, mask_file=None,
                            bregma_coordinates=None, lambda_coordinates=None, voxel_size=None):
-    atlas_data, atlas_info, segmentation_data, boundary = None, None, None, None
+    atlas_data, atlas_info, segmentation_data, unique_label, boundary = (
+        None, None, None, None, None
+    )
+
+    def failure(message):
+        return atlas_data, atlas_info, segmentation_data, unique_label, boundary, message
+
+    if not data_file or not segmentation_file:
+        return failure('Atlas and segmentation file names are required.')
+    if (
+        bregma_coordinates is None
+        or lambda_coordinates is None
+        or voxel_size is None
+        or voxel_size <= 0
+    ):
+        return failure('Bregma, Lambda, and a positive voxel size are required.')
 
     atlas_path = os.path.join(atlas_folder, data_file)
     segmentation_path = os.path.join(atlas_folder, segmentation_file)
@@ -295,23 +321,28 @@ def process_atlas_raw_data(atlas_folder, data_file=None, segmentation_file=None,
         if os.path.exists(mask_path):
             mask_data, mask_success = check_data_path_and_load(mask_path)
             if not mask_success:
-                msg = 'Failed to load mask data.'
-                return msg
-            mask_data = mask_data[:, :, :, 0]  # ????? check data again when you have time, dear
+                return failure('Failed to load mask data.')
         else:
-            mask_data = None
+            return failure('Mask path does not exist.')
     else:
         mask_data = None
 
     if not os.path.exists(atlas_path) or not os.path.exists(segmentation_path):
-        msg = 'atlas_path or segmentation_path not exist.'
-        return msg
+        return failure('Atlas or segmentation path does not exist.')
 
     # pre-process segmentation
     segmentation_data, seg_success = check_data_path_and_load(segmentation_path)
     if not seg_success:
-        msg = 'Failed to load segmentation data.'
-        return msg
+        return failure('Failed to load segmentation data.')
+
+    if np.asarray(segmentation_data).ndim != 3:
+        return failure('Segmentation data must be a 3-D volume.')
+
+    if mask_data is not None:
+        try:
+            mask_data = prepare_atlas_mask(mask_data, segmentation_data.shape)
+        except ValueError as exc:
+            return failure(str(exc))
 
     if mask_data is not None:
         # make segmentation with mask
@@ -323,26 +354,20 @@ def process_atlas_raw_data(atlas_folder, data_file=None, segmentation_file=None,
 
     segment = {'data': segmentation_data, 'unique_label': unique_label}
 
-    outfile = open(os.path.join(atlas_folder, 'segment_pre_made.pkl'), 'wb')
-    pickle.dump(segment, outfile)
-    outfile.close()
-
     # pre-process atlas
     atlas_data, atlas_success = check_data_path_and_load(atlas_path)
     if not atlas_success:
-        msg = 'Failed to load atlas volume data.'
-        return msg
+        return failure('Failed to load atlas volume data.')
 
-    new_atlas_data = atlas_data.copy()
+    if np.asarray(atlas_data).shape != np.asarray(segmentation_data).shape:
+        return failure('Atlas and segmentation volumes must have matching shapes.')
+
+    new_atlas_data = np.asarray(atlas_data).copy()
     if mask_data is not None:
         # make atlas with mask
-        new_atlas_data = new_atlas_data - np.min(new_atlas_data)
         for i in range(len(mask_data)):
             new_atlas_data[i][mask_data[i] == 0] = 0
-        new_atlas_data = new_atlas_data / np.max(new_atlas_data)
-    else:
-        new_atlas_data = new_atlas_data - np.min(new_atlas_data)
-        new_atlas_data = new_atlas_data / np.max(new_atlas_data)
+    new_atlas_data = normalize_atlas_volume(new_atlas_data)
 
     atlas_info = [
         {'name': 'anterior', 'values': np.arange(new_atlas_data.shape[0]) * voxel_size, 'units': 'um'},
@@ -358,9 +383,10 @@ def process_atlas_raw_data(atlas_folder, data_file=None, segmentation_file=None,
     atlas_data = atlas['data']
     atlas_info = atlas['info']
 
-    outfile = open(os.path.join(atlas_folder, 'atlas_pre_made.pkl'), 'wb')
-    pickle.dump(atlas, outfile)
-    outfile.close()
+    with open(os.path.join(atlas_folder, 'segment_pre_made.pkl'), 'wb') as outfile:
+        pickle.dump(segment, outfile)
+    with open(os.path.join(atlas_folder, 'atlas_pre_made.pkl'), 'wb') as outfile:
+        pickle.dump(atlas, outfile)
 
     boundary = make_atlas_label_contour(atlas_folder, segmentation_data)
 
@@ -383,6 +409,15 @@ class AtlasMeshProcessor(object):
 
 class AtlasLoader(object):
     def __init__(self, atlas_folder):
+        self.success = False
+        self.msg = ''
+        self.label_info = None
+        self.atlas_data = None
+        self.atlas_info = None
+        self.segmentation_data = None
+        self.unique_label = None
+        self.boundary = None
+
         pre_made_atlas_path = os.path.join(atlas_folder, 'atlas_pre_made.pkl')
         pre_made_segment_path = os.path.join(atlas_folder, 'segment_pre_made.pkl')
         pre_made_boundary_path = os.path.join(atlas_folder, 'contour_pre_made.pkl')
@@ -393,103 +428,74 @@ class AtlasLoader(object):
 
         pre_made_label_info_path = os.path.join(atlas_folder, 'atlas_labels.pkl')
 
-        chk1 = os.path.exists(pre_made_label_info_path)
-        chk2 = os.path.exists(pre_made_atlas_path)
-        chk3 = os.path.exists(pre_made_segment_path)
-
-        if not np.all([chk1, chk2, chk3]):
+        required_paths = (
+            pre_made_label_info_path,
+            pre_made_atlas_path,
+            pre_made_segment_path,
+        )
+        if not all(os.path.exists(path) for path in required_paths):
             self.msg = 'Please pre-process the raw data of your desire atlas.'
-            self.success = False
-        else:
-            # laod label info
-            try:
-                infile = open(pre_made_label_info_path, 'rb')
-                self.label_info = pickle.load(infile)
-                infile.close()
-                self.success = True
-            except ValueError:
-                self.msg = 'Please give the label information file. If you do not have one, ' \
-                           'the maintainers are more than happy to help you to process one.'
-                self.success = False
-            # load atlas
-            try:
-                infile_atlas = open(pre_made_atlas_path, 'rb')
-                atlas = pickle.load(infile_atlas)
-                infile_atlas.close()
+            return
 
-                self.atlas_data = atlas['data']
-                self.atlas_info = atlas['info']
-                # load segmentation
-                infile_seg = open(pre_made_segment_path, 'rb')
-                segment = pickle.load(infile_seg)
-                infile_seg.close()
+        try:
+            self.label_info = self._load_pickle(pre_made_label_info_path)
+            atlas = self._load_pickle(pre_made_atlas_path)
+            segment = self._load_pickle(pre_made_segment_path)
+            self.atlas_data = np.asarray(atlas['data'])
+            self.atlas_info = atlas['info']
+            self.segmentation_data = np.asarray(segment['data'])
+            self.unique_label = np.asarray(segment['unique_label'])
+        except (KeyError, TypeError, ValueError) as exc:
+            self.msg = 'Please re-process atlas and label segmentation file. {}'.format(exc)
+            return
 
-                self.segmentation_data = segment['data']
+        if self.atlas_data.shape != self.segmentation_data.shape:
+            self.msg = 'Atlas and segmentation volumes have different shapes.'
+            return
 
-                data_shape = self.segmentation_data.shape
-                print(data_shape)
-
-                self.unique_label = segment['unique_label']
-                self.success = True
-            except (ValueError, pickle.UnpicklingError):
-                self.msg = 'Please re-process atlas and label segmentation file.'
-                self.success = False
-
-        bnd_chk0 = os.path.exists(pre_made_boundary_path)
-        bnd_chk1 = os.path.exists(pre_s_boundary_path)
-        bnd_chk2 = os.path.exists(pre_c_boundary_path)
-        bnd_chk3 = os.path.exists(pre_h_boundary_path)
-
-        if not bnd_chk0:
-            if not np.all([bnd_chk1, bnd_chk2, bnd_chk3]):
-                self.msg = 'Please pre-process boundary file.'
-                self.success = False
+        try:
+            if os.path.exists(pre_made_boundary_path):
+                boundary_data = self._load_pickle(pre_made_boundary_path)
+                self.boundary = boundary_data['data']
             else:
-                # load boundary
-                self.boundary = {}
-                try:
-                    infile = open(pre_s_boundary_path, 'rb')
-                    sagital_contour_img = pickle.load(infile)
-                    infile.close()
+                boundary_paths = (
+                    pre_s_boundary_path,
+                    pre_c_boundary_path,
+                    pre_h_boundary_path,
+                )
+                if not all(os.path.exists(path) for path in boundary_paths):
+                    self.msg = 'Please pre-process boundary file.'
+                    return
+                self.boundary = {
+                    's_contour': self._load_pickle(pre_s_boundary_path),
+                    'c_contour': self._load_pickle(pre_c_boundary_path),
+                    'h_contour': self._load_pickle(pre_h_boundary_path),
+                }
 
-                    self.boundary['s_contour'] = sagital_contour_img
-                    self.success = True
-                except (ValueError, pickle.UnpicklingError, BrokenPipeError):
-                    self.msg = 'Please re-process boundary file.'
-                    self.success = False
+            expected_boundary_keys = {'s_contour', 'c_contour', 'h_contour'}
+            if not isinstance(self.boundary, dict) or not expected_boundary_keys.issubset(
+                self.boundary
+            ):
+                raise ValueError('Boundary file is incomplete.')
+            if any(
+                np.asarray(self.boundary[key]).shape != self.segmentation_data.shape
+                for key in expected_boundary_keys
+            ):
+                raise ValueError('Boundary and segmentation volumes have different shapes.')
+        except (KeyError, TypeError, ValueError) as exc:
+            self.msg = 'Please re-process boundary file. {}'.format(exc)
+            self.boundary = None
+            return
 
-                try:
-                    infile = open(pre_c_boundary_path, 'rb')
-                    coronal_contour_img = pickle.load(infile)
-                    infile.close()
+        self.success = True
+        self.msg = 'Atlas loaded successfully.'
 
-                    self.boundary['c_contour'] = coronal_contour_img
-                    self.success = True
-                except (ValueError, pickle.UnpicklingError, BrokenPipeError):
-                    self.msg = 'Please re-process boundary file.'
-                    self.success = False
-
-                try:
-                    infile = open(pre_h_boundary_path, 'rb')
-                    horizontal_contour_img = pickle.load(infile)
-                    infile.close()
-
-                    self.boundary['h_contour'] = horizontal_contour_img
-                    self.success = True
-                except (ValueError, pickle.UnpicklingError, BrokenPipeError):
-                    self.msg = 'Please re-process boundary file.'
-                    self.success = False
-        else:
-            try:
-                infile = open(pre_made_boundary_path, 'rb')
-                bnd = pickle.load(infile)
-                infile.close()
-
-                self.boundary = bnd['data']
-                self.success = True
-            except (ValueError, pickle.UnpicklingError, BrokenPipeError):
-                self.msg = 'Please re-process boundary file.'
-                self.success = False
+    @staticmethod
+    def _load_pickle(file_path):
+        data, error = load_legacy_pickle(file_path)
+        if error is not None:
+            raise ValueError(error)
+        return data
 
 
 
@@ -504,4 +510,3 @@ class AtlasLoader(object):
 class AtlasMeshLoader(object):
     def __init__(self, atlas_folder):
         pre_made_meshdata_path = os.path.join(atlas_folder, 'atlas_meshdata.pkl')
-

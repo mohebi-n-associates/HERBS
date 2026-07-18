@@ -12,6 +12,23 @@ SPEC.loader.exec_module(atlas_transform)
 
 
 class AtlasTransformTests(unittest.TestCase):
+    def test_mask_accepts_3d_and_singleton_4d_inputs(self):
+        mask = np.ones((2, 3, 4))
+        np.testing.assert_array_equal(
+            atlas_transform.prepare_atlas_mask(mask, (2, 3, 4)), mask
+        )
+        np.testing.assert_array_equal(
+            atlas_transform.prepare_atlas_mask(mask[..., None], (2, 3, 4)), mask
+        )
+
+    def test_mask_rejects_mismatched_shapes(self):
+        with self.assertRaises(ValueError):
+            atlas_transform.prepare_atlas_mask(np.ones((2, 3, 5)), (2, 3, 4))
+
+    def test_constant_volume_normalizes_without_nan(self):
+        normalized = atlas_transform.normalize_atlas_volume(np.ones((2, 2, 2)))
+        np.testing.assert_array_equal(normalized, np.zeros((2, 2, 2)))
+
     def test_boundary_volumes_are_exposed_with_loader_keys(self):
         boundary = atlas_transform.make_boundary_dict(
             np.zeros((2, 3, 4)), np.ones((2, 3, 4)), np.full((2, 3, 4), 2)

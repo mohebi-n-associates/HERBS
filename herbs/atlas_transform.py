@@ -15,6 +15,26 @@ def make_boundary_dict(sagittal, coronal, horizontal):
     }
 
 
+def prepare_atlas_mask(mask_data, volume_shape):
+    """Normalize supported 3-D/4-D masks and validate their volume shape."""
+    mask_data = np.asarray(mask_data)
+    if mask_data.ndim == 4 and mask_data.shape[-1] == 1:
+        mask_data = mask_data[..., 0]
+    if mask_data.ndim != 3 or tuple(mask_data.shape) != tuple(volume_shape):
+        raise ValueError("Atlas mask must be 3-D and match the atlas volume shape.")
+    return mask_data
+
+
+def normalize_atlas_volume(atlas_data):
+    """Normalize an atlas to [0, 1] without dividing by zero."""
+    atlas_data = np.asarray(atlas_data, dtype=float)
+    atlas_data = atlas_data - np.min(atlas_data)
+    maximum = np.max(atlas_data)
+    if maximum == 0:
+        return np.zeros_like(atlas_data)
+    return atlas_data / maximum
+
+
 def transform_atlas_volumes(atlas_data, segmentation_data, bregma, axis_info):
     """Transform atlas data, labels, and Bregma into the same axis system.
 
