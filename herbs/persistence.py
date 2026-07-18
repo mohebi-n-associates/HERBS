@@ -1,14 +1,244 @@
-"""Persistence helpers shared by projects, layers, and exported objects."""
+"""Versioned, non-executable persistence for HERBS user data."""
 
+import io
+import json
+import os
+from pathlib import Path
 import pickle
+import tempfile
+import zipfile
+
+import numpy as np
+
+
+FORMAT_NAME = "HERBS"
+FORMAT_VERSION = 1
+MANIFEST_NAME = "manifest.json"
+MAX_MANIFEST_BYTES = 16 * 1024 * 1024
+MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
+
+REQUIRED_KEYS = {
+    "layer": {"layer_link", "data", "color", "thumbnail"},
+    "object": {"type", "data", "name"},
+    "project": {
+        "atlas_path",
+        "img_path",
+        "current_atlas",
+        "num_windows",
+        "probe_settings",
+        "np_onside",
+        "processing_slice",
+        "processing_img",
+        "overlay_img",
+        "atlas_control",
+        "img_ctrl_data",
+        "setting_data",
+        "tool_data",
+        "layer_data",
+        "working_img_data",
+        "working_atlas_data",
+        "object_data",
+    },
+    "slice": {"data", "cut", "width", "height", "distance", "Bregma", "ready"},
+    "triangulation": {
+        "atlas_corner_points",
+        "atlas_side_lines",
+        "atlas_tri_data",
+        "atlas_tri_inside_data",
+        "atlas_tri_onside_data",
+        "atlas_display",
+    },
+}
+
+
+class RestrictedUnpickler(pickle.Unpickler):
+    """Legacy reader limited to inert builtins and NumPy array machinery."""
+
+    SAFE_GLOBALS = {
+        ("builtins", "complex"): complex,
+        ("builtins", "frozenset"): frozenset,
+        ("builtins", "set"): set,
+        ("builtins", "slice"): slice,
+        ("numpy", "dtype"): np.dtype,
+        ("numpy", "ndarray"): np.ndarray,
+        ("numpy.core.multiarray", "_reconstruct"): np.core.multiarray._reconstruct,
+        ("numpy.core.multiarray", "scalar"): np.core.multiarray.scalar,
+        ("numpy._core.multiarray", "_reconstruct"): np.core.multiarray._reconstruct,
+        ("numpy._core.multiarray", "scalar"): np.core.multiarray.scalar,
+    }
+
+    def find_class(self, module, name):
+        try:
+            return self.SAFE_GLOBALS[(module, name)]
+        except KeyError as exc:
+            raise pickle.UnpicklingError(
+                "Legacy file contains unsupported type {}.{}".format(module, name)
+            ) from exc
 
 
 def load_legacy_pickle(file_path):
-    """Load a legacy HERBS pickle with a consistent ``(data, error)`` result."""
+    """Load inert data from a legacy pickle with a consistent result tuple."""
     try:
         with open(file_path, "rb") as infile:
-            return pickle.load(infile), None
+            return RestrictedUnpickler(infile).load(), None
     except OSError as exc:
         return None, "Unable to read file: {}".format(exc)
     except Exception as exc:
-        return None, "Invalid or incomplete HERBS file: {}".format(exc)
+        return None, "Invalid or unsupported legacy HERBS file: {}".format(exc)
+
+
+def _validate_payload(data, kind):
+    required = REQUIRED_KEYS.get(kind)
+    if required is not None and (
+        not isinstance(data, dict) or not required.issubset(data)
+    ):
+        raise ValueError("File does not contain a complete {} payload.".format(kind))
+    return data
+
+
+def _encode(value, arrays):
+    if value is None or isinstance(value, (bool, int, str)):
+        return value
+    if isinstance(value, float):
+        if np.isfinite(value):
+            return value
+        return {"__type__": "float", "value": repr(value)}
+    if isinstance(value, np.generic):
+        return _encode(value.item(), arrays)
+    if isinstance(value, np.ndarray):
+        if value.dtype.hasobject:
+            return {"__type__": "object_array", "value": _encode(value.tolist(), arrays)}
+        name = "arrays/{:08d}.npy".format(len(arrays))
+        arrays.append((name, value))
+        return {"__type__": "ndarray", "name": name}
+    if isinstance(value, dict):
+        return {
+            "__type__": "dict",
+            "items": [[_encode(key, arrays), _encode(item, arrays)] for key, item in value.items()],
+        }
+    if isinstance(value, list):
+        return {"__type__": "list", "items": [_encode(item, arrays) for item in value]}
+    if isinstance(value, tuple):
+        return {"__type__": "tuple", "items": [_encode(item, arrays) for item in value]}
+    if isinstance(value, Path):
+        return {"__type__": "path", "value": str(value)}
+    if value.__class__.__name__ == "QColor" and hasattr(value, "getRgb"):
+        return {"__type__": "color", "rgba": list(value.getRgb())}
+    raise TypeError("Unsupported HERBS data type: {}".format(type(value).__name__))
+
+
+def _decode(value, archive):
+    if not isinstance(value, dict) or "__type__" not in value:
+        return value
+    value_type = value["__type__"]
+    if value_type == "float":
+        return float(value["value"])
+    if value_type == "ndarray":
+        name = value["name"]
+        if name not in archive.namelist() or not name.startswith("arrays/"):
+            raise ValueError("Archive references a missing array: {}".format(name))
+        with archive.open(name) as stream:
+            return np.lib.format.read_array(stream, allow_pickle=False)
+    if value_type == "object_array":
+        return np.asarray(_decode(value["value"], archive), dtype=object)
+    if value_type == "dict":
+        return {
+            _decode(key, archive): _decode(item, archive)
+            for key, item in value["items"]
+        }
+    if value_type == "list":
+        return [_decode(item, archive) for item in value["items"]]
+    if value_type == "tuple":
+        return tuple(_decode(item, archive) for item in value["items"])
+    if value_type == "path":
+        return Path(value["value"])
+    if value_type == "color":
+        return tuple(value["rgba"])
+    raise ValueError("Unknown HERBS archive value type: {}".format(value_type))
+
+
+def save_herbs_file(file_path, data, kind):
+    """Atomically save data in the versioned HERBS archive format."""
+    destination = Path(file_path)
+    arrays = []
+    try:
+        _validate_payload(data, kind)
+        encoded = _encode(data, arrays)
+        manifest = json.dumps(
+            {
+                "format": FORMAT_NAME,
+                "version": FORMAT_VERSION,
+                "kind": kind,
+                "data": encoded,
+            },
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            dir=str(destination.parent), prefix=".herbs-", suffix=".tmp", delete=False
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+        try:
+            with zipfile.ZipFile(
+                temporary_path, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True
+            ) as archive:
+                archive.writestr(MANIFEST_NAME, manifest)
+                for name, array in arrays:
+                    with archive.open(name, "w", force_zip64=True) as stream:
+                        np.lib.format.write_array(stream, array, allow_pickle=False)
+            os.replace(str(temporary_path), str(destination))
+        except Exception:
+            temporary_path.unlink(missing_ok=True)
+            raise
+    except Exception as exc:
+        return False, "Unable to save HERBS file: {}".format(exc)
+    return True, None
+
+
+def load_herbs_file(file_path, expected_kind=None):
+    """Load a safe HERBS archive, falling back to restricted legacy data."""
+    try:
+        if not zipfile.is_zipfile(file_path):
+            data, error = load_legacy_pickle(file_path)
+            if error is None and expected_kind is not None:
+                try:
+                    return _validate_payload(data, expected_kind), None
+                except ValueError as exc:
+                    return None, "Invalid HERBS file: {}".format(exc)
+            return data, error
+
+        with zipfile.ZipFile(file_path, "r") as archive:
+            infos = archive.infolist()
+            names = [info.filename for info in infos]
+            if len(names) != len(set(names)):
+                raise ValueError("Archive contains duplicate entries.")
+            total_size = sum(info.file_size for info in infos)
+            if total_size > MAX_ARCHIVE_BYTES:
+                raise ValueError("Archive expands beyond the supported size limit.")
+            if MANIFEST_NAME not in names:
+                raise ValueError("Archive has no HERBS manifest.")
+            manifest_info = archive.getinfo(MANIFEST_NAME)
+            if manifest_info.file_size > MAX_MANIFEST_BYTES:
+                raise ValueError("HERBS manifest is too large.")
+            manifest = json.loads(archive.read(MANIFEST_NAME).decode("utf-8"))
+            if manifest.get("format") != FORMAT_NAME:
+                raise ValueError("File is not a HERBS archive.")
+            if manifest.get("version") != FORMAT_VERSION:
+                raise ValueError(
+                    "Unsupported HERBS archive version: {}".format(
+                        manifest.get("version")
+                    )
+                )
+            if expected_kind is not None and manifest.get("kind") != expected_kind:
+                raise ValueError(
+                    "Expected a {} file, found {}.".format(
+                        expected_kind, manifest.get("kind")
+                    )
+                )
+            data = _decode(manifest["data"], archive)
+            if expected_kind is not None:
+                data = _validate_payload(data, expected_kind)
+            return data, None
+    except Exception as exc:
+        return None, "Invalid HERBS file: {}".format(exc)

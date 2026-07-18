@@ -66,6 +66,7 @@ from .uuuuuu import (
     calculate_drawing_info,
     calculate_contour_line,
     check_loading_pickle_file,
+    check_loaded_project,
     check_bounding_contains,
     get_statusbar_style,
     load_point_data,
@@ -109,6 +110,7 @@ from .obj_items import (
     make_3d_gl_widget,
 )
 from .about_herbs import AboutHERBSWindow
+from .persistence import save_herbs_file
 
 
 script_dir = dirname(realpath(__file__))
@@ -1576,7 +1578,10 @@ class HERBS(QMainWindow, FORM_Main):
         msg = "Load Atlas Slice ... This process will clear the current Atlas layers (if any)."
         self.print_message(msg, self.normal_color)
         file_title = "Select Atlas Slice File"
-        file_filter = "JPEG (*.jpg);;PNG (*.png);;Pickle File (*.pkl)"
+        file_filter = (
+            "JPEG (*.jpg);;PNG (*.png);;HERBS Slice (*.herbsslice);;"
+            "Legacy HERBS Slice (*.pkl)"
+        )
         if self.atlas_img_path is None:
             file_path = self.home_path
         else:
@@ -1677,12 +1682,14 @@ class HERBS(QMainWindow, FORM_Main):
             )
             return
         path = QFileDialog.getSaveFileName(
-            self, "Save Processed Slice", self.home_path, "Pickle File (*.pkl)"
+            self, "Save Processed Slice", self.home_path, "HERBS Slice (*.herbsslice)"
         )
         if path[0] != "":
             data = self.atlas_view.save_slice_data_and_info()
-            with open(path[0], "wb") as handle:
-                pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            success, error = save_herbs_file(path[0], data, "slice")
+            if not success:
+                self.print_message(error, self.error_message_color)
+                return
             self.print_message(
                 "Current Slice is saved successfully.", self.normal_color
             )
@@ -1732,7 +1739,7 @@ class HERBS(QMainWindow, FORM_Main):
             self,
             "Save Triangulation Points Data",
             self.home_path,
-            "Pickle File (*.pkl)",
+            "HERBS Triangulation (*.herbstri)",
         )
         if path[0] != "":
             data = {
@@ -1741,18 +1748,18 @@ class HERBS(QMainWindow, FORM_Main):
                 "atlas_tri_data": self.atlas_tri_data,
                 "atlas_tri_inside_data": self.atlas_tri_inside_data,
                 "atlas_tri_onside_data": self.atlas_tri_onside_data,
-                "working_atlas_text": self.working_atlas_text,
                 "atlas_display": self.atlas_display,
             }
-            with open(path[0], "wb") as handle:
-                pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            success, error = save_herbs_file(path[0], data, "triangulation")
+            if not success:
+                self.print_message(error, self.error_message_color)
 
     # load triangulation points
     def load_triangulation_points(self):
         if self.atlas_view.atlas_data is None:
             self.print_message("Atlas need to be loaded first.", self.reminder_color)
             return
-        filter = "Pickle File (*.pkl)"
+        filter = "HERBS Triangulation (*.herbstri);;Legacy HERBS File (*.pkl)"
         dlg = QFileDialog()
         dlg.setFileMode(QFileDialog.ExistingFiles)
         pnt_path = dlg.getOpenFileName(
@@ -1761,9 +1768,12 @@ class HERBS(QMainWindow, FORM_Main):
         # print(pnt_path)
 
         if pnt_path[0] != "":
-            infile = open(pnt_path[0], "rb")
-            tri_data = pickle.load(infile)
-            infile.close()
+            tri_data, error = check_loading_pickle_file(
+                pnt_path[0], expected_kind="triangulation"
+            )
+            if error is not None:
+                self.print_message(error, self.error_message_color)
+                return
 
             if "atlas_corner_points" not in list(tri_data.keys()):
                 self.print_message(
@@ -1778,7 +1788,7 @@ class HERBS(QMainWindow, FORM_Main):
             self.atlas_tri_data = tri_data["atlas_tri_data"]
             self.atlas_tri_inside_data = tri_data["atlas_tri_inside_data"]
             self.atlas_tri_onside_data = tri_data["atlas_tri_onside_data"]
-            self.working_atlas_text = tri_data["working_atlas_text"]
+            self.working_atlas_text = []
 
             if tri_data["atlas_display"] == "coronal":
                 self.atlas_view.section_rabnt1.setChecked(True)
@@ -1790,8 +1800,12 @@ class HERBS(QMainWindow, FORM_Main):
                 self.atlas_view.working_atlas.image_dict["tri_pnts"].setData(
                     self.atlas_tri_data
                 )
-                for i in range(len(self.atlas_tri_data)):
-                    self.atlas_view.working_atlas.vb.addItem(self.working_atlas_text[i])
+                for i, point in enumerate(self.atlas_tri_inside_data):
+                    text_item = pg.TextItem(str(i))
+                    text_item.setColor(self.triangle_color)
+                    text_item.setPos(point[0], point[1])
+                    self.working_atlas_text.append(text_item)
+                    self.atlas_view.working_atlas.vb.addItem(text_item)
 
     # ------------------------------------------------------------------
     #
@@ -6262,12 +6276,14 @@ class HERBS(QMainWindow, FORM_Main):
             img_data = cv2.cvtColor(img_data, cv2.COLOR_BGR2RGBA)
             self.atlas_view.set_slice_data(img_data)
         else:
-            try:
-                with open(atlas_path, "rb") as f:
-                    slice_data = pickle.load(f)
-            except (IOError, OSError, pickle.PickleError, pickle.UnpicklingError):
-                msg = "Loading slice atlas is failed. Please check your image or contact maintainers."
-                self.print_message(msg, self.error_message_color)
+            slice_data, error = check_loading_pickle_file(
+                atlas_path, expected_kind="slice"
+            )
+            if error is not None:
+                self.print_message(
+                    "Loading slice atlas failed. {}".format(error),
+                    self.error_message_color,
+                )
                 return
             self.atlas_view.set_slice_data_and_info(slice_data)
 
@@ -6570,8 +6586,12 @@ class HERBS(QMainWindow, FORM_Main):
                     "name": self.object_ctrl.obj_name[da_ind],
                 }
                 s_path = os.path.join(save_path, self.object_ctrl.obj_name[da_ind])
-                with open("{}.pkl".format(s_path), "wb") as handle:
-                    pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                success, error = save_herbs_file(
+                    "{}.herbsobj".format(s_path), data, "object"
+                )
+                if not success:
+                    self.print_message(error, self.error_message_color)
+                    return
         else:
             return
 
@@ -6583,7 +6603,7 @@ class HERBS(QMainWindow, FORM_Main):
             self,
             "Save Current Object File",
             self.current_img_path,
-            "Pickle File (*.pkl)",
+            "HERBS Object (*.herbsobj)",
         )
         if file_name[0] != "":
             da_data = {
@@ -6591,8 +6611,10 @@ class HERBS(QMainWindow, FORM_Main):
                 "data": self.object_ctrl.obj_data[self.object_ctrl.current_obj_index],
                 "name": self.object_ctrl.obj_name[self.object_ctrl.current_obj_index],
             }
-            with open(file_name[0], "wb") as handle:
-                pickle.dump(da_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            success, error = save_herbs_file(file_name[0], da_data, "object")
+            if not success:
+                self.print_message(error, self.error_message_color)
+                return
             self.print_message(
                 "Current object is saved successfully.", self.normal_color
             )
@@ -6623,7 +6645,7 @@ class HERBS(QMainWindow, FORM_Main):
             self,
             "Load Object Files",
             self.home_path,
-            "Pickle File (*.pkl)",
+            "HERBS Object (*.herbsobj);;Legacy HERBS Object (*.pkl)",
             options=file_options,
         )
 
@@ -6632,7 +6654,9 @@ class HERBS(QMainWindow, FORM_Main):
             problem_obj_name = []
             for i in range(n_files):
                 file_name = os.path.basename(object_file_path[0][i])
-                object_dict, msg = check_loading_pickle_file(object_file_path[0][i])
+                object_dict, msg = check_loading_pickle_file(
+                    object_file_path[0][i], expected_kind="object"
+                )
                 if msg is not None:
                     self.print_message(
                         "Loading {} is failed. {}".format(file_name, msg),
@@ -6677,7 +6701,10 @@ class HERBS(QMainWindow, FORM_Main):
             return
         self.print_message("Save current layer...", self.normal_color)
         path = QFileDialog.getSaveFileName(
-            self, "Save current layer", self.current_img_path
+            self,
+            "Save current layer",
+            self.current_img_path,
+            "HERBS Layer (*.herbslayer)",
         )
         if path[0] != "":
             da_link = self.layer_ctrl.layer_link[self.layer_ctrl.current_layer_index[0]]
@@ -6686,9 +6713,11 @@ class HERBS(QMainWindow, FORM_Main):
                 self.layer_ctrl.current_layer_index[0]
             ].thumbnail_data
             if "img" in da_link:
-                self.save_hist_layer_data(da_link, color, tb_nail, path[0])
+                saved = self.save_hist_layer_data(da_link, color, tb_nail, path[0])
             else:
-                self.save_atlas_layer_data(da_link, color, tb_nail, path[0])
+                saved = self.save_atlas_layer_data(da_link, color, tb_nail, path[0])
+            if not saved:
+                return
             self.print_message("Current layer is saved.", self.normal_color)
         else:
             self.print_message("", self.normal_color)
@@ -6699,7 +6728,7 @@ class HERBS(QMainWindow, FORM_Main):
             return
         self.print_message("Save all layers...", self.normal_color)
         path = QFileDialog.getSaveFileName(
-            self, "Save all layer", self.current_img_path
+            self, "Save all layer", self.current_img_path, "HERBS Layer (*.herbslayer)"
         )
         if path[0] != "":
             for da_link in self.layer_ctrl.layer_link:
@@ -6707,9 +6736,15 @@ class HERBS(QMainWindow, FORM_Main):
                 da_color = self.layer_ctrl.layer_color[da_ind]
                 tb_nail = self.layer_ctrl.layer_list[da_ind].thumbnail_data
                 if "img" in da_link:
-                    self.save_hist_layer_data(da_link, da_color, tb_nail, path[0])
+                    saved = self.save_hist_layer_data(
+                        da_link, da_color, tb_nail, path[0]
+                    )
                 else:
-                    self.save_atlas_layer_data(da_link, da_color, tb_nail, path[0])
+                    saved = self.save_atlas_layer_data(
+                        da_link, da_color, tb_nail, path[0]
+                    )
+                if not saved:
+                    return
             self.print_message("All layers are saved.", self.normal_color)
         else:
             self.print_message("", self.normal_color)
@@ -6756,9 +6791,11 @@ class HERBS(QMainWindow, FORM_Main):
         fdata["color"] = color
         fdata["thumbnail"] = thumbnail
 
-        fpath = "{}_{}.pkl".format(path, layer_link)
-        with open(fpath, "wb") as handle:
-            pickle.dump(fdata, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        fpath = "{}_{}.herbslayer".format(path, layer_link)
+        success, error = save_herbs_file(fpath, fdata, "layer")
+        if not success:
+            self.print_message(error, self.error_message_color)
+            return False
 
         if layer_link in ["img-process", "img-mask", "img-overlay"]:
             if layer_link == "img-process":
@@ -6788,8 +6825,7 @@ class HERBS(QMainWindow, FORM_Main):
             fpath = "{}_{}.jpg".format(path, layer_link)
             da_img = cv2.cvtColor(image_to_be_saved, cv2.COLOR_RGB2BGR)
             cv2.imwrite(fpath, da_img)
-        else:
-            return
+        return True
 
     def get_atlas_single_layer_vis_data(self, layer_link):
         if layer_link == "atlas-slice":
@@ -6829,9 +6865,11 @@ class HERBS(QMainWindow, FORM_Main):
         fdata["color"] = color
         fdata["thumbnail"] = thumbnail
 
-        fpath = "{}_{}.pkl".format(path, layer_link)
-        with open(fpath, "wb") as handle:
-            pickle.dump(fdata, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        fpath = "{}_{}.herbslayer".format(path, layer_link)
+        success, error = save_herbs_file(fpath, fdata, "layer")
+        if not success:
+            self.print_message(error, self.error_message_color)
+            return False
 
         if layer_link in ["atlas-slice", "atlas-mask", "atlas-overlay"]:
             if layer_link == "atlas-slice":
@@ -6846,8 +6884,7 @@ class HERBS(QMainWindow, FORM_Main):
             fpath = "{}_{}.jpg".format(path, layer_link)
             da_img = cv2.cvtColor(image_to_be_saved, cv2.COLOR_RGB2BGR)
             cv2.imwrite(fpath, da_img)
-        else:
-            return
+        return True
 
     # --------------------------------------------------------------------
     #                            load layer data
@@ -7078,7 +7115,7 @@ class HERBS(QMainWindow, FORM_Main):
             self,
             "Load Layer Files",
             self.home_path,
-            "Pickle File (*.pkl)",
+            "HERBS Layer (*.herbslayer);;Legacy HERBS Layer (*.pkl)",
             options=file_options,
         )
 
@@ -7086,7 +7123,9 @@ class HERBS(QMainWindow, FORM_Main):
             n_files = len(layer_files_path[0])
             for i in range(n_files):
                 file_path = layer_files_path[0][i]
-                layer_dict, msg = check_loading_pickle_file(file_path)
+                layer_dict, msg = check_loading_pickle_file(
+                    file_path, expected_kind="layer"
+                )
                 if msg is not None:
                     self.print_message(msg, self.error_message_color)
                     return
@@ -7153,7 +7192,7 @@ class HERBS(QMainWindow, FORM_Main):
             self.print_message("No project can be saved.", self.reminder_color)
             return
         file_name = QFileDialog.getSaveFileName(
-            self, "Save Project", self.save_path, "Pickle File (*.pkl)"
+            self, "Save Project", self.save_path, "HERBS Project (*.herbs)"
         )
         if file_name[0] != "":
             if self.current_atlas == "slice":
@@ -7231,8 +7270,10 @@ class HERBS(QMainWindow, FORM_Main):
                 "object_data": object_data,
             }
 
-            with open(file_name[0], "wb") as handle:
-                pickle.dump(project_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            success, error = save_herbs_file(file_name[0], project_data, "project")
+            if not success:
+                self.print_message(error, self.error_message_color)
+                return
             self.print_message("Project saved successfully.", self.normal_color)
         else:
             self.print_message("", self.normal_color)
@@ -7509,15 +7550,23 @@ class HERBS(QMainWindow, FORM_Main):
             self,
             "Load Project",
             self.home_path,
-            "Pickle File (*.pkl)",
+            "HERBS Project (*.herbs);;Legacy HERBS Project (*.pkl)",
             options=file_options,
         )
 
         if project_path[0] != "":
-            p_dict, msg = check_loading_pickle_file(project_path[0])
+            p_dict, msg = check_loading_pickle_file(
+                project_path[0], expected_kind="project"
+            )
             if msg is not None:
                 self.print_message(
                     "Loading project is failed. {}".format(msg),
+                    self.error_message_color,
+                )
+                return
+            if not check_loaded_project(p_dict):
+                self.print_message(
+                    "The selected file does not contain a complete HERBS project.",
                     self.error_message_color,
                 )
                 return
@@ -7552,8 +7601,9 @@ class HERBS(QMainWindow, FORM_Main):
             return
 
         try:
-            with open(file_path, "rb") as f:
-                axis_info = pickle.load(f)
+            axis_info, error = check_loading_pickle_file(file_path)
+            if error is not None:
+                raise ValueError(error)
             transpose_order = axis_info["to_HERBS"]
             atlas_size = axis_info["size"]
             direction_change = axis_info["direction_change"]
@@ -7579,7 +7629,7 @@ class HERBS(QMainWindow, FORM_Main):
             self,
             "Load Point Data",
             self.home_path,
-            "Numpy File (*.npy);;Pickle File (*.pkl)",
+            "Numpy File (*.npy);;Legacy HERBS Points (*.pkl)",
             options=file_options,
         )
 

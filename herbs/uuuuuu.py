@@ -10,7 +10,7 @@ import pyqtgraph.opengl as gl
 import scipy.ndimage as ndi
 from scipy.interpolate import interp1d, splprep, splev
 from .coordinate_validation import coordinates_in_bounds
-from .persistence import load_legacy_pickle
+from .persistence import load_herbs_file
 
 
 def read_qss_file(qss_file_name):
@@ -18,8 +18,8 @@ def read_qss_file(qss_file_name):
         return file.read()
 
 
-def check_loading_pickle_file(file_path):
-    return load_legacy_pickle(file_path)
+def check_loading_pickle_file(file_path, expected_kind=None):
+    return load_herbs_file(file_path, expected_kind=expected_kind)
 
 
 def read_excel_file(file_path):
@@ -990,11 +990,12 @@ def color_vis_img(img, color):
 
 
 def check_loaded_project(project_dict):
-    all_keys = list(project_dict.keys())
-    valid_keys = [
+    required_keys = {
         "atlas_path",
+        "img_path",
         "current_atlas",
         "num_windows",
+        "probe_settings",
         "probe_type",
         "np_onside",
         "processing_slice",
@@ -1008,12 +1009,10 @@ def check_loaded_project(project_dict):
         "working_img_data",
         "working_atlas_data",
         "object_data",
-    ]
-    valid_project = True
-    for da_key in all_keys:
-        if da_key not in valid_keys:
-            valid_project = False
-    return valid_project
+    }
+    # ``probe_type`` was present only in early project files.
+    required_keys.discard("probe_type")
+    return isinstance(project_dict, dict) and required_keys.issubset(project_dict)
 
 
 def check_bounding_contains(points, size):
@@ -1134,11 +1133,11 @@ def load_point_data(data_file_path):
     data = None
     try:
         if file_ext == ".npy":
-            data = np.load(data_file_path)
+            data = np.load(data_file_path, allow_pickle=False)
         elif file_ext == ".pkl":
-            with open(data_file_path, "rb") as f:
-                data = pickle.load(f)
-            # data = data_file['points']
+            data, msg = load_herbs_file(data_file_path)
+            if msg is not None:
+                return data, msg
     except (
         IOError,
         OSError,

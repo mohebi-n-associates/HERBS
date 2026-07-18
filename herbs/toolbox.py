@@ -517,14 +517,14 @@ class ToolBox(QObject):
         self.ruler_size_valt.setText(str(val))
 
     def get_tool_data(self):
-        data = {'pencil_color': self.pencil_color_btn.color(),
+        data = {'pencil_color': self.pencil_color_btn.color().getRgb(),
                 'pencil_size': self.pencil_size_valt.text(),
-                'magic_wand_color': self.magic_color_btn.color(),
+                'magic_wand_color': self.magic_color_btn.color().getRgb(),
                 'magic_wand_tol': self.magic_tol_val.text(),
                 'magic_wand_kernel': self.magic_wand_kernel.currentText(),
                 'magic_wand_ksize': self.magic_wand_ksize.value(),
-                'probe_color': self.probe_color_btn.color(),
-                'cell_color': self.cell_color_btn.color(),
+                'probe_color': self.probe_color_btn.color().getRgb(),
+                'cell_color': self.cell_color_btn.color().getRgb(),
                 'is_closed': self.is_closed}
         return data
 
@@ -545,7 +545,6 @@ class ToolBox(QObject):
             self.multi_shanks = True
         else:
             self.multi_shanks = False
-
 
 
 

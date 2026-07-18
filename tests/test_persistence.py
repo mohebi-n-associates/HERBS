@@ -1,8 +1,11 @@
 import importlib.util
+import os
 from pathlib import Path
 import pickle
 import tempfile
 import unittest
+
+import numpy as np
 
 
 MODULE_PATH = Path(__file__).parents[1] / "herbs" / "persistence.py"
@@ -32,6 +35,61 @@ class LegacyPickleTests(unittest.TestCase):
         data, error = persistence.load_legacy_pickle("does-not-exist.pkl")
         self.assertIsNone(data)
         self.assertIn("Unable to read file", error)
+
+    def test_legacy_reader_rejects_executable_globals(self):
+        class Malicious:
+            def __reduce__(self):
+                return os.system, ("touch {}".format(marker),)
+
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / "executed"
+            payload = Path(folder) / "malicious.pkl"
+            with payload.open("wb") as stream:
+                pickle.dump(Malicious(), stream)
+
+            data, error = persistence.load_legacy_pickle(payload)
+            self.assertIsNone(data)
+            self.assertIn("unsupported type", error)
+            self.assertFalse(marker.exists())
+
+
+class SafeArchiveTests(unittest.TestCase):
+    def test_round_trip_preserves_nested_arrays_and_types(self):
+        data = {
+            "array": np.arange(12, dtype=np.uint16).reshape(3, 4),
+            "tuple": ("a", 2),
+            "nested": [True, None, np.float32(1.5)],
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "project.herbs"
+            success, error = persistence.save_herbs_file(path, data, "test")
+            self.assertTrue(success, error)
+            self.assertTrue(persistence.zipfile.is_zipfile(path))
+
+            loaded, error = persistence.load_herbs_file(path, "test")
+            self.assertIsNone(error)
+            np.testing.assert_array_equal(loaded["array"], data["array"])
+            self.assertEqual(loaded["tuple"], ("a", 2))
+            self.assertEqual(loaded["nested"], [True, None, 1.5])
+
+    def test_archive_kind_is_validated(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "layer.herbslayer"
+            success, error = persistence.save_herbs_file(
+                path,
+                {
+                    "layer_link": "img-mask",
+                    "data": [1],
+                    "color": [255, 0, 0],
+                    "thumbnail": [1],
+                },
+                "layer",
+            )
+            self.assertTrue(success, error)
+
+            loaded, error = persistence.load_herbs_file(path, "project")
+            self.assertIsNone(loaded)
+            self.assertIn("Expected a project file", error)
 
 
 if __name__ == "__main__":
