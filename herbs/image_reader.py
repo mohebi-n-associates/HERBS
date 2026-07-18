@@ -1,244 +1,178 @@
-import os
-import cv2
-import tifffile
+"""Readers that normalize supported image files for :class:`ImageView`."""
+
 import colorsys
+from pathlib import Path
+
+import cv2
 import numpy as np
+import tifffile
 
 
-# image_file_path = '/Users/jingyig/Work/Kavli/Data/HERBS_DATA/test_image_type/image_0195.tif'
+MAX_CHANNELS = 4
+RGB_COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+CHANNEL_COLORS = [(128, 128, 128), (255, 0, 0), (0, 255, 0), (0, 0, 255)]
+CHANNEL_NAMES = ["Gray", "Red", "Green", "Blue"]
+
+
+def _hsv_colors(rgb_colors):
+    result = []
+    for red, green, blue in rgb_colors:
+        hue, saturation, value = colorsys.rgb_to_hsv(red, green, blue)
+        result.append((hue, saturation, value / 255))
+    return result
+
+
+def _set_channel_metadata(reader, rgb_colors, channel_names):
+    reader.rgb_colors = list(rgb_colors)
+    reader.channel_name = list(channel_names)
+    reader.hsv_colors = _hsv_colors(reader.rgb_colors)
+    reader.gamma_val = []
+
 
 class ImageReader(object):
+    """Read a conventional bitmap as an eight-bit RGB image."""
+
     def __init__(self, image_file_path):
         self.error_index = 0
         self.is_czi = False
-        self.file_name_list = [image_file_path[:-4]]
-        if self.file_name_list[0][-1] == '.':
-            self.file_name_list[0] = self.file_name_list[0][:-1]
+        self.file_name_list = [str(Path(image_file_path).with_suffix(""))]
         self.n_scenes = 1
         self.n_pages = 1
-
         self.scaling_val = None
         self.is_rgb = True
-        self.pixel_type = 'rgb24'
+        self.pixel_type = "rgb24"
         self.level = 255
         self.n_channels = 3
-        self.data_type = 'uint8'
-        self.rgb_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-        self.channel_name = ['Red', 'Green', 'Blue']
-        self.hsv_colors = []
-        for i in range(3):
-            chsv = colorsys.rgb_to_hsv(self.rgb_colors[i][0], self.rgb_colors[i][1], self.rgb_colors[i][2])
-            hsv_color = (chsv[0], chsv[1], chsv[2] / 255)
-            self.hsv_colors.append(hsv_color)
-        self.gamma_val = []
+        self.data_type = "uint8"
+        _set_channel_metadata(self, RGB_COLORS, ["Red", "Green", "Blue"])
 
-        self.data = {}
-        self.scale = {}
-
-        img_data = cv2.imread(image_file_path)
-        img_data = cv2.cvtColor(img_data, cv2.COLOR_BGR2RGB)
-
-        self.data['scene 0'] = img_data
-        self.scale['scene 0'] = 1
-
-
-
-# image_file_path = '/Users/jingyig/Work/Kavli/Data/HERBS_DATA/TIF_test/13234_PHALDAB_s3_g004_tiff_30_s3.tif'
-#
-#
-# import h5py
-# filename = '/Users/jingyig/Work/Kavli/Data/HERBS_DATA/RAW-TILE_Cam_Left_00000.lux.h5'
-#
-# with h5py.File(filename, "r") as f:
-#     # List all groups
-#     all_keys = list(f.keys())
-#     # Get the data
-#     data = f[all_keys[0]]
-#     print(data.shape)
-#     plt.imshow(data[800, :, :])
-#     a = data[800, :, :]
-#     plt.show()
-#     meta_data = f[all_keys[1]]
-#
-#
-#
-#     print(meta_data)
-#
-# f = h5py.File(filename, "r")
-# list(f.keys())
-#
-# f['Data'].attrs.keys()
-# f['Data'].attrs['CLASS']
-# f['Data'].attrs['element_size_um']
-# f.close()
-# array([6.  , 1.95, 1.95])
-
-# image_file_path = '/Users/jingyig/Work/Kavli/Data/HERBS_DATA/TIF_test/2_2_rotated.tif'
+        image = cv2.imread(str(image_file_path), cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError("OpenCV could not decode the selected image.")
+        self.data = {"scene 0": cv2.cvtColor(image, cv2.COLOR_BGR2RGB)}
+        self.scale = {"scene 0": 1.0}
 
 
 class TIFFReader(object):
+    """Read grayscale, RGB, channel, or page-stack TIFF data."""
+
     def __init__(self, image_file_path):
         self.error_index = 0
         self.is_czi = False
-        self.file_name_list = [image_file_path[:-4]]
-        if self.file_name_list[0][-1] == '.':
-            self.file_name_list[0] = self.file_name_list[0][:-1]
+        self.file_name_list = [str(Path(image_file_path).with_suffix(""))]
+        self.n_scenes = 0
+        self.n_pages = 1
+        self.scaling_val = None
+        self.software = None
+        self.is_imagej = False
+        self.is_rgb = False
+        self.pixel_type = None
+        self.level = None
+        self.n_channels = 0
+        self.data_type = None
+        self.data = {}
+        self.scale = {}
+        _set_channel_metadata(self, [], [])
 
-        da_file = tifffile.TiffFile(image_file_path)
-        self.n_scenes = len(da_file.series)
+        with tifffile.TiffFile(image_file_path) as tiff_file:
+            self.n_scenes = len(tiff_file.series)
+            self.is_imagej = tiff_file.is_imagej
+            if tiff_file.pages:
+                self.software = tiff_file.pages[0].software
+            if self.n_scenes != 1:
+                self.error_index = 1
+                return
 
-        if self.n_scenes > 1:
-            self.error_index = 1
+            series = tiff_file.series[0]
+            image = np.asarray(series.asarray())
+            axes = series.axes
+
+        if image.dtype not in (np.dtype("uint8"), np.dtype("uint16")):
+            self.error_index = 2
+            return
+
+        self.data_type = image.dtype.name
+        self.level = int(np.iinfo(image.dtype).max)
+        bit_depth = image.dtype.itemsize * 8
+
+        if image.ndim == 2:
+            image = image[..., None]
+            self._set_grayscale(image, bit_depth, 1)
+        elif image.ndim == 3 and image.shape[-1] in (3, 4) and axes.endswith("S"):
+            self.is_rgb = True
+            self.pixel_type = "rgb{}".format(bit_depth * 3)
+            self.n_channels = 3
+            image = image[..., :3]
+            _set_channel_metadata(self, RGB_COLORS, ["Red", "Green", "Blue"])
+        elif image.ndim == 3 and "C" in axes:
+            channel_axis = axes.index("C")
+            image = np.moveaxis(image, channel_axis, -1)
+            self._set_grayscale(image, bit_depth, image.shape[-1])
+        elif image.ndim == 3 and axes.endswith("YX"):
+            self.n_pages = image.shape[0]
+            self.is_rgb = False
+            self.pixel_type = "gray{}".format(bit_depth)
+            self.n_channels = 1
+            _set_channel_metadata(self, CHANNEL_COLORS[:1], CHANNEL_NAMES[:1])
         else:
-            self.n_pages = len(da_file.pages)
-            self.pixel_type = da_file.pages[0].dtype
-            self.software = da_file.pages[0].software
-            self.is_imagej = da_file.is_imagej
+            self.error_index = 7
+            return
 
-            self.scaling_val = None
+        if self.n_channels > MAX_CHANNELS:
+            self.error_index = 8
+            return
 
-            self.hsv_colors = []
-            self.gamma_val = []
-            self.data = {}
-            self.scale = {}
+        self.data["scene 0"] = image
+        self.scale["scene 0"] = 1.0
 
-            if self.pixel_type == 'uint8':
-                self.pixel_type = 'rgb24'
-                self.level = 255
-                self.data_type = 'uint8'
-                self.is_rgb = True
-                self.n_channels = 3
-            elif self.pixel_type == 'uint16':
-                self.pixel_type = 'gray16'
-                self.level = 65535
-                self.data_type = 'uint16'
-                self.is_rgb = False
-                self.n_channels = 1
-            else:
-                self.error_index = 2
-
-            if da_file.is_imagej:
-                if da_file.is_bigtiff:
-                    if self.n_pages == 1:
-                        self.error_index = 3
-                    else:
-                        self.data['scene 0'] = da_file.asarray()
-                        self.scale['scene 0'] = 100
-                        self.error_index = 7
-                else:
-                    if self.n_pages == 1:
-                        img_data = da_file.asarray()
-                        if len(img_data.shape) == 2:
-                            img_data = [img_data]
-                            img_data = np.dstack(img_data)
-                        self.data['scene 0'] = img_data
-                        self.scale['scene 0'] = 100
-                    else:
-                        temp = da_file.asarray()
-                        img_data = []
-                        for i in range(self.n_pages):
-                            img_data.append(temp[i])
-                        img_data = np.dstack(img_data)
-                        img_data = img_data.astype(self.data_type)
-                        self.data['scene 0'] = img_data
-                        self.scale['scene 0'] = 100
-                        self.n_channels = self.n_pages
-                        self.is_rgb = False
-                        self.n_pages = 1
-                        self.pixel_type = 'gray8'
-            else:
-                if da_file.is_bigtiff:
-                    if self.n_pages == 1:
-                        self.error_index = 4
-                    else:
-                        self.data['scene 0'] = da_file.asarray()
-                        self.scale['scene 0'] = 100
-                        self.error_index = 7
-                else:
-                    if self.n_pages == 1:
-                        img_data = da_file.asarray()
-                        if len(img_data.shape) == 2:
-                            img_data = [img_data]
-                            img_data = np.dstack(img_data)
-                        self.data['scene 0'] = img_data
-                        self.scale['scene 0'] = 100
-                    else:
-                        self.error_index = 5
-
-        if self.pixel_type == 'rgb24':
-            self.rgb_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-            self.channel_name = ['Red', 'Green', 'Blue']
-            for i in range(3):
-                chsv = colorsys.rgb_to_hsv(self.rgb_colors[i][0], self.rgb_colors[i][1], self.rgb_colors[i][2])
-                hsv_color = (chsv[0], chsv[1], chsv[2] / 255)
-                self.hsv_colors.append(hsv_color)
-        elif self.pixel_type == 'gray16':
-            self.rgb_colors = [(128, 128, 128)]
-            chsv = colorsys.rgb_to_hsv(self.rgb_colors[0][0], self.rgb_colors[0][1], self.rgb_colors[0][2])
-            hsv_color = (chsv[0], chsv[1], chsv[2] / 255)
-            self.hsv_colors.append(hsv_color)
-            self.channel_name = ['Gray']
-        elif self.pixel_type == 'gray8':
-            possible_rgb_color = [(128, 128, 128), (255, 0, 0), (0, 255, 0), (0, 0, 255)]
-            possible_channel_name = ['Gray', 'Red', 'Green', 'Blue']
-            self.rgb_colors = []
-            self.channel_name = []
-            for i in range(self.n_channels):
-                self.rgb_colors.append(possible_rgb_color[i])
-                chsv = colorsys.rgb_to_hsv(self.rgb_colors[i][0], self.rgb_colors[i][1], self.rgb_colors[i][2])
-                hsv_color = (chsv[0], chsv[1], chsv[2] / 255)
-                self.hsv_colors.append(hsv_color)
-                self.channel_name.append(possible_channel_name[i])
-        else:
-            self.error_index = 6
-
-        da_file.close()
-
-        # for tag in da_file.pages[0].tags:
-        #     tag_name, tag_value = tag.name, tag.value
-        #     print(tag_name, tag_value)
-
-
-
-
+    def _set_grayscale(self, image, bit_depth, n_channels):
+        self.is_rgb = False
+        self.pixel_type = "gray{}".format(bit_depth)
+        self.n_channels = n_channels
+        _set_channel_metadata(
+            self, CHANNEL_COLORS[:n_channels], CHANNEL_NAMES[:n_channels]
+        )
 
 
 class ImagesReader(object):
-    def __init__(self, folder_path):
+    """Read a folder of conventional images as deterministic RGB scenes."""
 
-        all_files_in_folder = os.listdir(folder_path)
+    SUPPORTED_SUFFIXES = {".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
+
+    def __init__(self, folder_path):
+        self.error_index = 0
         self.is_czi = False
         self.is_rgb = True
         self.n_channels = 3
+        self.n_pages = 1
         self.level = 255
-        self.data_type = 'uint8'
-        self.hsv_colors = [(0, 255, 255), (120, 255, 255), (240, 255, 255)]
-        self.rgb_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-        self.channel_name = ['Red', 'Green', 'Blue']
+        self.data_type = "uint8"
+        self.pixel_type = "rgb24"
+        self.scaling_val = None
+        _set_channel_metadata(self, RGB_COLORS, ["Red", "Green", "Blue"])
         self.file_name_list = []
         self.data = {}
-        scene_id = 0
+        self.scale = {}
 
-        for i in range(len(all_files_in_folder)):
-            da_image_file = all_files_in_folder[i]
-            da_file_name = da_image_file[:-4]
-            if da_file_name[-1] == '.':
-                da_file_name = da_file_name[:-1]
+        paths = sorted(
+            (
+                path
+                for path in Path(folder_path).iterdir()
+                if path.is_file() and path.suffix.lower() in self.SUPPORTED_SUFFIXES
+            ),
+            key=lambda path: path.name.casefold(),
+        )
+        if not paths:
+            raise ValueError("The selected folder contains no supported images.")
 
-            file_type = da_image_file[-4:]
-            if file_type in ['.bmp', '.jpg', '.png', 'jpeg', '.tif', '.pdf']:
-                self.file_name_list.append(da_file_name)
-                da_file_path = os.path.join(folder_path, da_image_file)
-
-                if file_type in ['.bmp', '.jpg', '.png', 'jpeg']:
-                    data = cv2.imread(da_file_path)
-                    img_data = cv2.cvtColor(data, cv2.COLOR_BGR2RGB)
-                else:
-                    print('TIFF file is testing')
-                    img_data = tifffile.imread(da_file_path)
-
-                self.data['scene %d' % scene_id] = img_data
-
-                scene_id += 1
+        for scene_id, path in enumerate(paths):
+            image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+            if image is None:
+                raise ValueError("Could not decode image: {}".format(path.name))
+            self.file_name_list.append(path.stem)
+            self.data["scene {}".format(scene_id)] = cv2.cvtColor(
+                image, cv2.COLOR_BGR2RGB
+            )
+            self.scale["scene {}".format(scene_id)] = 1.0
 
         self.n_scenes = len(self.data)

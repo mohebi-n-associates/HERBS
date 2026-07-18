@@ -6081,7 +6081,8 @@ class HERBS(QMainWindow, FORM_Main):
         self.print_message("Load Image ...", self.normal_color)
         file_title = "Select Histological Image File"
         file_filter = (
-            "CZI (*.czi);;JPEG (*.jpg);;PNG (*.png);;TIFF (*.tif);;BMP (*.bmp)"
+            "CZI (*.czi);;JPEG (*.jpg *.jpeg);;PNG (*.png);;"
+            "TIFF (*.tif *.tiff);;BMP (*.bmp)"
         )
         if self.current_img_path is None:
             file_path = self.home_path
@@ -6096,12 +6097,16 @@ class HERBS(QMainWindow, FORM_Main):
         )
 
         if image_file_path[0] != "":
-            image_name, image_file_type = os.path.splitext(image_file_path[0])
+            _, image_file_type = os.path.splitext(image_file_path[0])
+            image_file_type = image_file_type.lower()
+            if not self.load_single_image_file(
+                image_file_path[0], image_file_type
+            ):
+                return
             self.current_img_path = image_file_path[0]
             self.current_img_name = os.path.basename(
                 os.path.realpath(image_file_path[0])
             )
-            self.load_single_image_file(self.current_img_path, image_file_type)
             self.save_path = image_file_path[0]
             self.project_method = "pre plan"
             self.tool_box.pre_site_face_combo.setVisible(False)
@@ -6120,17 +6125,17 @@ class HERBS(QMainWindow, FORM_Main):
             if image_file_type == ".czi":
                 try:
                     image_file = CZIReader(image_file_path)
-                except (IOError, OSError, IndexError, AttributeError):
+                except (IOError, OSError, IndexError, AttributeError, TypeError, ValueError):
                     self.print_message(
                         "Load CZI file failed.", self.error_message_color
                     )
-                    return
+                    return False
                 if image_file.error_index != 0:
                     self.print_message(
                         "Error Index: {}".format(image_file.error_index),
                         self.error_message_color,
                     )
-                    return
+                    return False
                 scale = self.image_view.scale_slider.value()
                 scale = scale * 0.01
                 if scene_index is None:
@@ -6147,20 +6152,20 @@ class HERBS(QMainWindow, FORM_Main):
                     for i in range(image_file.n_channels):
                         self.tool_box.cell_count_label_list[i + 1].setVisible(True)
                         self.tool_box.cell_count_val_list[i + 1].setVisible(True)
-            elif image_file_type == ".tif":
+            elif image_file_type in (".tif", ".tiff"):
                 try:
                     image_file = TIFFReader(image_file_path)
-                except (IOError, OSError, IndexError, AttributeError):
+                except (IOError, OSError, IndexError, AttributeError, TypeError, ValueError):
                     self.print_message(
                         "Load TIF file failed.", self.error_message_color
                     )
-                    return
+                    return False
                 if image_file.error_index != 0:
                     self.print_message(
                         "Error Index: {}".format(image_file.error_index),
                         self.error_message_color,
                     )
-                    return
+                    return False
                 if image_file.is_rgb:
                     self.tool_box.cell_count_label_list[0].setVisible(True)
                     self.tool_box.cell_count_val_list[0].setVisible(True)
@@ -6171,17 +6176,17 @@ class HERBS(QMainWindow, FORM_Main):
             else:
                 try:
                     image_file = ImageReader(image_file_path)
-                except (IOError, OSError, IndexError, AttributeError):
+                except (IOError, OSError, IndexError, AttributeError, TypeError, ValueError):
                     self.print_message(
                         "Load RGB image file failed.", self.error_message_color
                     )
-                    return
+                    return False
                 if image_file.error_index != 0:
                     self.print_message(
                         "Error Index: {}".format(image_file.error_index),
                         self.error_message_color,
                     )
-                    return
+                    return False
                 self.tool_box.cell_count_label_list[0].setVisible(True)
                 self.tool_box.cell_count_val_list[0].setVisible(True)
 
@@ -6232,6 +6237,7 @@ class HERBS(QMainWindow, FORM_Main):
             self.show_2_windows()
 
         self.sidebar.setCurrentIndex(2)
+        return True
 
     # load multiple images
     def load_images(self):
@@ -6246,10 +6252,15 @@ class HERBS(QMainWindow, FORM_Main):
             # image_files_list = natsorted(image_files_list)
 
             with pg.BusyCursor():
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("error")
+                try:
                     image_file = ImagesReader(images_folder)
                     self.image_view.set_data(image_file)
+                except (IOError, OSError, TypeError, ValueError) as exc:
+                    self.print_message(
+                        "Loading image folder failed: {}".format(exc),
+                        self.error_message_color,
+                    )
+                    return
 
             self.sidebar.setCurrentIndex(3)
             self.statusbar.showMessage("Image files loaded.")

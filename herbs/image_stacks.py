@@ -141,6 +141,12 @@ class SliceStack(pg.GraphicsLayoutWidget):
         self.vb.addItem(self.pre_trajectory_list[0])
 
     def set_data(self, data, scale=None):
+        if data.ndim != 3:
+            raise ValueError('Image data must have shape (height, width, channels).')
+        if data.shape[2] > len(self.image_list):
+            raise ValueError(
+                'HERBS supports at most {} image channels.'.format(len(self.image_list))
+            )
         self.data = data
         if scale is not None:
             self.resetTransform()
@@ -304,6 +310,9 @@ class ImageStacks(pg.GraphicsLayoutWidget):
         for i in range(self.data.shape[2]):
             self.image_list[i].setImage(self.data[:, :, i], autoLevels=False)
             self.image_list[i].setVisible(True)
+        for i in range(self.data.shape[2], len(self.image_list)):
+            self.image_list[i].clear()
+            self.image_list[i].setVisible(False)
 
     def set_lut(self, lut_list, bit_level):
         for i in range(self.data.shape[2]):
@@ -311,7 +320,9 @@ class ImageStacks(pg.GraphicsLayoutWidget):
             self.image_list[i].setLookupTable(lut_list[i])
 
     def set_opacity(self, val):
-        for i in range(len(self.data)):
+        if self.data is None:
+            return
+        for i in range(self.data.shape[2]):
             self.image_list[i].setOpts(opacity=val)
 
     def boundingRect(self):
@@ -340,6 +351,5 @@ class ImageStacks(pg.GraphicsLayoutWidget):
         # elif event.key() == Qt.Key_Enter or event.key() == Qt.Key_Return:
         #     print('enter')
         #     self.sig_key_pressed.emit('enter')
-
 
 

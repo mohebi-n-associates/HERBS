@@ -212,6 +212,12 @@ class ImageView(QObject):
         outer_layout.addWidget(self.chn_widget_wrap)
 
     def set_data(self, image_file):
+        if image_file.n_channels > self.max_num_channels:
+            raise ValueError(
+                'HERBS supports at most {} image channels.'.format(
+                    self.max_num_channels
+                )
+            )
         if self.image_file is not None:
             self.page_ctrl.setVisible(False)
             self.clear_image_stacks()
@@ -637,6 +643,5 @@ class ImageView(QObject):
         self.get_corner_and_lines()
 
     # def clear_curve_widget(self):
-
 
 

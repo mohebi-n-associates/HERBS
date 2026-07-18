@@ -6,6 +6,7 @@ import pickle
 import numpy as np
 import colorsys
 from .uuuuuu import hex2rgb
+from .image_reader import MAX_CHANNELS
 
 # czi_path = '~/Work/Kavli/Data/HERBS_DATA/abraham/Pecorino_mec_slide_1.czi'
 
@@ -46,11 +47,16 @@ class CZIReader(object):
             if self.pixel_type == "gray16":
                 self.level = 65535
                 self.data_type = "uint16"
+            elif self.pixel_type == "gray8":
+                self.level = 255
+                self.data_type = "uint8"
             else:
-                da_power = int(self.pixel_type[-2:]) / 3
-                self.level = int(np.power(2, da_power)) - 1
-                self.data_type = "uint" + str(int(da_power))
+                self.error_index = 2
+                return
             self.n_channels = self.dimensions[0]["C"][1]
+            if self.n_channels > MAX_CHANNELS:
+                self.error_index = 8
+                return
 
         self.n_scenes = len(self.dimensions)
         self.has_fixed_box = False
@@ -198,23 +204,33 @@ class CZIReader(object):
                 if self.n_channels != 1:
                     temp = []
                     for j in range(self.n_channels):
-                        mosaic_data = self.czi.read_mosaic(
-                            C=j,
-                            scale_factor=scale,
-                            region=self.scene_bbox[scind],
-                        )
-                        img = mosaic_data[0].copy()
+                        img = self._read_grayscale_plane(j, scale, scind)
                         temp.append(img)
                     img_data_temp = np.dstack(temp)
                     self.data["scene %d" % scind] = img_data_temp
                     self.scale["scene %d" % scind] = scale
                 else:
-                    mosaic_data = self.czi.read_mosaic(
-                        C=0, scale_factor=scale, region=self.scene_bbox[scind]
-                    )
-                    img = mosaic_data[0].copy()
+                    img = self._read_grayscale_plane(0, scale, scind)
                     img_data_temp = img
                     self.data["scene %d" % scind] = img_data_temp.reshape(
                         img.shape[0], img.shape[1], 1
                     )
                     self.scale["scene %d" % scind] = scale
+
+    def _read_grayscale_plane(self, channel, scale, scene_index):
+        if self.is_mosaic:
+            data = self.czi.read_mosaic(
+                C=channel,
+                scale_factor=scale,
+                region=self.scene_bbox[scene_index],
+            )
+        else:
+            data = self.czi.read_image(
+                C=channel,
+                S=scene_index,
+                region=self.scene_bbox[scene_index],
+            )[0]
+        image = np.squeeze(np.asarray(data))
+        if image.ndim != 2:
+            raise ValueError("CZI channel did not decode to a two-dimensional image.")
+        return image.copy()
