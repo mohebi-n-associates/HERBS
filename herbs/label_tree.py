@@ -100,6 +100,8 @@ class LabelTree(QWidget):
             n_labels = len(label_data['index'])
             self.label_level = np.max([ind for ind in label_data['index'] if ind not in label_data['parent']])
             self.current_lut = np.zeros((self.label_level + 1, 4), 'i')
+            # Pass 1: create every item first so that parent lookups in pass 2
+            # do not depend on the order labels appear in the atlas data.
             for i in range(n_labels):
                 label_id = label_data['index'][i]
                 parent = label_data['parent'][i]
@@ -115,8 +117,21 @@ class LabelTree(QWidget):
                     self.root_acronym.append(acronym.encode())
                 rec = (label_id, parent, name.encode(), acronym.encode(), da_color.encode())
                 self.add_label(*rec)
-            for i in range(len(self.root_acronym)):
-                self.root_item.append(self.labels_by_acronym[self.root_acronym[i]]['item'])
+            # Pass 2: attach each item to its parent (or to the tree root when the
+            # parent is missing/negative), registering every top-level node as a
+            # root so describe() can always terminate its upward walk.
+            tree_root = self.tree.invisibleRootItem()
+            for label_id, rec in self.labels_by_id.items():
+                item = rec['item']
+                parent = rec['parent']
+                if parent in self.labels_by_id:
+                    parent_item = self.labels_by_id[parent]['item']
+                else:
+                    parent_item = tree_root
+                    self.root_item.append(item)
+                parent_item.addChild(item)
+                self.tree.setItemWidget(item, 2, rec['btn'])
+                rec['btn'].sigColorChanged.connect(self.item_color_changed)
         finally:
             self._block_signals = False
         self.labels_changed.emit()
@@ -125,28 +140,29 @@ class LabelTree(QWidget):
         item = QTreeWidgetItem([acronym.decode(), name.decode(), ''])
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
         item.setCheckState(0, Qt.Unchecked)
-        if parent in self.labels_by_id:
-            root = self.labels_by_id[parent]['item']
-        else:
-            root = self.tree.invisibleRootItem()
-    
-        root.addChild(item)
+
         btn = pg.ColorButton(color=pg.mkColor(color.decode()))
         btn.defaultColor = color.decode()
         btn.id = label_id
-        self.tree.setItemWidget(item, 2, btn)
-    
-        self.labels_by_id[label_id] = {'item': item, 'btn': btn}
+
+        # Item creation and tree attachment are split into two passes (see
+        # set_labels), so only register the item here; attachment happens later.
+        self.labels_by_id[label_id] = {'item': item, 'btn': btn, 'parent': parent}
         item.id = label_id
         self.labels_by_acronym[acronym] = self.labels_by_id[label_id]
-    
-        btn.sigColorChanged.connect(self.item_color_changed)
 
     def clear_labels(self):
         root = self.tree.invisibleRootItem()
         for label_id in list(self.labels_by_id.keys()):
             da_item = self.labels_by_id[label_id]['item']
             (da_item.parent() or root).removeChild(da_item)
+        # Reset all bookkeeping so a subsequent set_labels() starts clean and
+        # does not re-attach or treat stale entries as roots.
+        self.labels_by_id = {}
+        self.labels_by_acronym = {}
+        self.root_item = []
+        self.root_acronym = []
+        self.checked = set()
 
     def item_change(self, item, col):
         checked = item.checkState(0) == Qt.Checked
@@ -214,7 +230,7 @@ class LabelTree(QWidget):
         descr = []
         item = self.labels_by_id[label_id]['item']
         name = str(item.text(1))
-        while item not in self.root_item:
+        while item is not None and item not in self.root_item:
             # self.labels_by_acronym[b'Brain']['item'], self.labels_by_acronym[b'SpC']['item'], self.labels_by_acronym[b'IE']['item']
             descr.insert(0, str(item.text(0)))
             item = item.parent()
