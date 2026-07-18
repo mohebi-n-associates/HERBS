@@ -14,11 +14,41 @@ HERBS provides users:
 
 ## Install
 
-```python
-$ pip install herbs
+> **Note:** The PyPI package (`pip install herbs`) is no longer maintained and is out of date. Please install HERBS from the source repository as shown below.
+
+Clone (or download) this repository and install it with `pip`:
+
+```bash
+$ git clone https://github.com/JingyiGF/HERBS.git
+$ cd HERBS
+$ pip install .
 ```
 
-Please install the newest version of HERBS.
+If you would like to modify the source code and have your changes take effect immediately (without reinstalling), use an editable install instead:
+
+```bash
+$ pip install -e .
+```
+
+We strongly recommend installing HERBS inside a dedicated virtual environment (see the notes below). To upgrade to the newest version later, pull the latest changes and reinstall:
+
+```bash
+$ git pull
+$ pip install . --upgrade
+```
+
+Please always use the newest version of HERBS.
+
+<details>
+<summary>Downloaded a ZIP instead of cloning?</summary>
+
+Download the repository from GitHub (**Code → Download ZIP**), unzip it, then from a terminal:
+
+```bash
+$ cd path/to/HERBS       # the unzipped folder containing setup.py
+$ pip install .
+```
+</details>
 
 ## Usage
 
