@@ -325,27 +325,34 @@ class LayersControl(QWidget):
         self.add_layer_btn.setStyleSheet(btm_style)
         self.add_layer_btn.setIcon(QIcon('icons/layers/add.png'))
         self.add_layer_btn.setIconSize(QSize(20, 20))
-        self.add_layer_btn.clicked.connect(lambda: self.add_layer('Layer'))
+        self.add_layer_btn.clicked.connect(lambda: self.add_layer('Layer', []))
 
         self.delete_layer_btn = QPushButton()
         self.delete_layer_btn.setFixedSize(24, 24)
         self.delete_layer_btn.setStyleSheet(btm_style)
         self.delete_layer_btn.setIcon(QIcon('icons/layers/trash.png'))
         self.delete_layer_btn.setIconSize(QSize(20, 20))
-        self.delete_layer_btn.clicked.connect(self.delete_layer_btn_clicked)
+        self.delete_layer_btn.clicked.connect(self.delete_current_layers)
+
+        button_frame = QFrame()
+        button_layout = QHBoxLayout(button_frame)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.addWidget(self.add_layer_btn)
+        button_layout.addWidget(self.delete_layer_btn)
+        button_layout.addStretch()
 
         outer_layout = QVBoxLayout()
         outer_layout.setSpacing(10)
         outer_layout.addWidget(blend_frame)
         outer_layout.addWidget(opacity_frame)
         outer_layout.addWidget(mid_frame)
+        outer_layout.addWidget(button_frame)
 
         self.setLayout(outer_layout)
 
     def add_layer(self, widget_link, color):
         self.layer_id.append(self.layer_count)
         self.layer_link.append(widget_link)
-        print(self.layer_link)
         self.layer_opacity.append(100)
         self.layer_blend_mode.append('Plus')
         self.sig_blend_mode_changed.emit((widget_link, 
@@ -359,7 +366,6 @@ class LayersControl(QWidget):
         new_layer.sig_delete.connect(self.delete_layer_btn_clicked)
 
         active_index = len(self.layer_id) - 1
-        print('add', active_index)
         if self.current_layer_index:
             for da_ind in self.current_layer_index:
                 self.layer_list[da_ind].set_checked(False)
@@ -383,9 +389,17 @@ class LayersControl(QWidget):
             self.layer_list[da_ind].set_thumbnail_data(res)
 
     def delete_layer_btn_clicked(self, clicked_id):
-        delete_index = np.where(np.ravel(self.layer_id) == clicked_id)[0][0]
+        matching_indexes = np.where(np.ravel(self.layer_id) == clicked_id)[0]
+        if len(matching_indexes) == 0:
+            return
+        delete_index = matching_indexes[0]
         self.sig_layer_deleted.emit(self.layer_link[delete_index])
         self.delete_layer(delete_index)
+
+    def delete_current_layers(self):
+        for delete_index in sorted(self.current_layer_index, reverse=True):
+            self.sig_layer_deleted.emit(self.layer_link[delete_index])
+            self.delete_layer(delete_index)
 
     def delete_layer(self, delete_index):
         self.layer_layout.removeWidget(self.layer_list[delete_index])
@@ -465,7 +479,6 @@ class LayersControl(QWidget):
         for i in range(len(self.layer_link)):
             da_tb = self.layer_list[i].thumbnail_data
             tb_list.append(da_tb)
-        print(self.layer_link)
         data = {'layer_link': self.layer_link,
                 'layer_color': self.layer_color,
                 'layer_thumbnail': tb_list,
@@ -475,15 +488,44 @@ class LayersControl(QWidget):
         return data
 
     def set_layer_data(self, data):
-        for i in range(len(data['layer_link'])):
-            self.master_layers(data['layer_thumbnail'][i], data['layer_link'][i], data['layer_color'][i])
-        self.layer_color = data['layer_color']
-        self.layer_opacity = data['layer_opacity']
-        self.layer_blend_mode = data['layer_blend_mode']
-        self.current_layer_index = data['current_layer_index']
-        self.layer_list[-1].set_checked(False)
-        for i in range(len(self.current_layer_index)):
-            self.layer_list[i].set_checked(True)
+        required_keys = (
+            'layer_link', 'layer_color', 'layer_thumbnail', 'layer_opacity',
+            'layer_blend_mode', 'current_layer_index'
+        )
+        missing_keys = [key for key in required_keys if key not in data]
+        if missing_keys:
+            raise ValueError('Layer data is missing: {}.'.format(', '.join(missing_keys)))
+
+        layer_count = len(data['layer_link'])
+        parallel_keys = ('layer_color', 'layer_thumbnail', 'layer_opacity', 'layer_blend_mode')
+        if any(len(data[key]) != layer_count for key in parallel_keys):
+            raise ValueError('Saved layer properties have inconsistent lengths.')
+        if len(set(data['layer_link'])) != layer_count:
+            raise ValueError('Saved layer links must be unique.')
+
+        self.clear_all()
+        for i in range(layer_count):
+            self.master_layers(
+                data['layer_thumbnail'][i], data['layer_link'][i], data['layer_color'][i]
+            )
+        self.layer_color = list(data['layer_color'])
+        self.layer_opacity = list(data['layer_opacity'])
+        self.layer_blend_mode = list(data['layer_blend_mode'])
+
+        for layer in self.layer_list:
+            layer.set_checked(False)
+        selected_indexes = []
+        for saved_index in data['current_layer_index']:
+            index = int(saved_index)
+            if 0 <= index < layer_count and index not in selected_indexes:
+                selected_indexes.append(index)
+                self.layer_list[index].set_checked(True)
+        self.current_layer_index = selected_indexes
+
+        if len(selected_indexes) == 1:
+            index = selected_indexes[0]
+            self.layer_opacity_slider.setValue(self.layer_opacity[index])
+            self.layer_blend_combo.setCurrentText(self.layer_blend_mode[index])
 
     def clear_all(self):
         ind = np.arange(len(self.layer_list))[::-1]
@@ -491,16 +533,13 @@ class LayersControl(QWidget):
             self.layer_layout.removeWidget(self.layer_list[i])
             self.layer_list[i].deleteLater()
             del self.layer_list[i]
-        self.layer_link = []
         self.layer_id = []
         self.layer_link = []
         self.layer_color = []
         self.layer_opacity = []
         self.layer_blend_mode = []
-        self.layer_count = []
         self.current_layer_index = []
         self.layer_count = 0
-
 
 
 
