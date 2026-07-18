@@ -1,48 +1,43 @@
-import urllib.request
 import numpy as np
-import time
 import os
-import sys
-from os.path import dirname, realpath, join
+from os.path import dirname, join
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
 import pickle
 import shutil
-import requests
-
 from .atlas_loader import process_atlas_raw_data
 from .obj_items import render_volume, render_small_volume
+from .download_utils import DownloadCancelled, download_file
 
 
 class DownloadThread(QThread):
     download_process_signal = pyqtSignal(int)
+    download_error_signal = pyqtSignal(str)
+    download_finished_signal = pyqtSignal(str)
 
-    def __init__(self, url, filesize, fileobj, buffer):
-        super(DownloadThread, self).__init__()
+    def __init__(self, url, destination, expected_sha256=None, parent=None):
+        super(DownloadThread, self).__init__(parent)
         self.url = url
-        self.filesize = filesize
-        self.fileobj = fileobj
-        self.buffer = buffer
+        self.destination = destination
+        self.expected_sha256 = expected_sha256
 
     def run(self):
         try:
-            rsp = requests.get(self.url, stream=True)
-            offset = 0
-            for chunk in rsp.iter_content(chunk_size=self.buffer):
-                if not chunk:
-                    break
-                self.fileobj.seek(offset)
-                self.fileobj.write(chunk)
-                offset = offset + len(chunk)
-                proess = offset / int(self.filesize) * 100
-                self.download_process_signal.emit(int(proess))
-            self.fileobj.close()
-            self.exit(0)
-
-        except Exception as e:
-            print(e)
+            download_file(
+                self.url,
+                self.destination,
+                progress=self.download_process_signal.emit,
+                cancelled=self.isInterruptionRequested,
+                expected_sha256=self.expected_sha256,
+            )
+        except DownloadCancelled:
+            return
+        except Exception as exc:
+            self.download_error_signal.emit(str(exc))
+            return
+        self.download_finished_signal.emit(self.destination)
 
 
 class WorkerProcessData(QObject):
@@ -111,7 +106,7 @@ class WorkerProcessData(QObject):
             progress_step = np.linspace(50, 95, n_label)
 
             for i in range(n_label):
-                self.progress.emit(progress_step[i])
+                self.progress.emit(int(progress_step[i]))
                 label_id = int(self.unique_label[i])
 
                 if label_id == 0:
@@ -171,6 +166,8 @@ class AtlasDownloader(QDialog):
 
         self.finish = [False, False, False, False]
         self.process_finished = False
+        self.download_threads = {}
+        self.download_errors = {}
 
         self.label_bar = QProgressBar()
         self.label_bar.setMinimumWidth(400)
@@ -237,19 +234,35 @@ class AtlasDownloader(QDialog):
 
             self.start_thread(self.label_url, self.label_local, self.set_label_bar_value)
             self.start_thread(self.mask_url, self.mask_local, self.set_mask_bar_value)
-            time.sleep(0.1)
             self.start_thread(self.segmentation_url, self.segmentation_local, self.set_segmentation_bar_value)
-            time.sleep(0.1)
             self.start_thread(self.data_url, self.data_local, self.set_data_bar_value)
 
     #
     def start_thread(self, url, local, func):
-        file_size = requests.get(url, stream=True).headers['Content-Length']
-        file_obj = open(os.path.join(self.saving_folder, local), 'wb')
+        destination = os.path.join(self.saving_folder, local)
+        self.download_errors.pop(local, None)
+        thread = DownloadThread(url, destination, parent=self)
+        self.download_threads[local] = thread
+        thread.download_process_signal.connect(func)
+        thread.download_error_signal.connect(
+            lambda message, name=local: self.download_failed(name, message)
+        )
+        thread.finished.connect(
+            lambda name=local: self.download_thread_finished(name)
+        )
+        thread.start()
 
-        self.da_thread = DownloadThread(url, file_size, file_obj, buffer=1024)
-        self.da_thread.download_process_signal.connect(func)
-        self.da_thread.start()
+    def download_failed(self, local, message):
+        self.download_errors[local] = message
+        self.process_info.setText('Download failed for {}: {}'.format(local, message))
+
+    def download_thread_finished(self, local):
+        thread = self.download_threads.pop(local, None)
+        if thread is not None:
+            thread.deleteLater()
+
+    def has_active_downloads(self):
+        return any(thread.isRunning() for thread in self.download_threads.values())
 
     # Setting progress bar
     def set_label_bar_value(self, value):
@@ -280,14 +293,31 @@ class AtlasDownloader(QDialog):
         self.progress.setValue(i)
 
     def process_start(self):
-        # if not np.all(self.finish):
-        #     return
+        if self.has_active_downloads():
+            self.process_info.setText('Please wait until all downloads finish.')
+            return
         if self.saving_folder is not None:
             saving_folder = self.saving_folder
         else:
             saving_folder = str(QFileDialog.getExistingDirectory(self, "Select Atlas Folder"))
 
         if saving_folder != '':
+            required_files = (
+                self.data_local,
+                self.segmentation_local,
+                self.mask_local,
+            )
+            missing_files = [
+                name
+                for name in required_files
+                if not os.path.isfile(os.path.join(saving_folder, name))
+                or os.path.getsize(os.path.join(saving_folder, name)) == 0
+            ]
+            if missing_files:
+                self.process_info.setText(
+                    'Missing or empty atlas files: {}'.format(', '.join(missing_files))
+                )
+                return
             self.process_btn.setVisible(False)
             self.worker.set_data(saving_folder, self.data_local, self.segmentation_local, self.mask_local,
                                  self.b_val, self.l_val, self.vox_size)
@@ -308,9 +338,22 @@ class AtlasDownloader(QDialog):
                 'Atlas processing failed',
                 self.worker.message or 'Atlas processing did not complete.',
             )
-        self.close()
+            self.reject()
+            return
+        self.process_finished = True
+        self.continue_process = True
+        self.accept()
 
     def closeEvent(self, event):
+        if self.process_finished:
+            event.accept()
+            return
+        if self.has_active_downloads() or self.thread.isRunning():
+            QMessageBox.information(
+                self, 'Operation in progress', 'Please wait for the active operation to finish.'
+            )
+            event.ignore()
+            return
         reply = QMessageBox.question(self, 'Message',
                                      "Do you want to leave?", QMessageBox.Yes, QMessageBox.No)
 
@@ -325,4 +368,3 @@ class AtlasDownloader(QDialog):
     #         self.close()
     #     else:
     #         return
-

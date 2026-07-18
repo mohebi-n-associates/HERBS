@@ -1,7 +1,5 @@
-import time
 import os
-import sys
-from os.path import dirname, realpath, join
+from os.path import dirname, join
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -10,7 +8,6 @@ import pyqtgraph.opengl as gl
 import nrrd
 import pickle
 import shutil
-import requests
 import numpy as np
 import pandas as pd
 
@@ -19,10 +16,12 @@ from .uuuuuu import hex2rgb, obj_data_to_mesh3d, make_contour_img
 from .obj_items import render_volume, render_small_volume
 from .atlas_downloader import DownloadThread
 from .atlas_transform import make_boundary_dict
+from .download_utils import download_file
 
 
 class WorkerProcessAllen(QObject):
     finished = pyqtSignal()
+    failed = pyqtSignal(str)
     progress = pyqtSignal(float)
 
     def __init__(self):
@@ -56,6 +55,14 @@ class WorkerProcessAllen(QObject):
         self.progress.emit(total_count)
 
     def run(self):
+        try:
+            self._run()
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+        self.finished.emit()
+
+    def _run(self):
         self.progress.emit(1)
         label_data, header = nrrd.read(os.path.join(self.saving_folder, self.segmentation_local))
         self.progress.emit(10)
@@ -289,46 +296,45 @@ class WorkerProcessAllen(QObject):
 
         # self.progress.emit(100)
 
-        self.finished.emit()
-
-
 class MeshDownloader(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(int)
+    failed = pyqtSignal(str)
 
     def __init__(self):
         super(MeshDownloader, self).__init__()
 
         self.save_folder = None
         self.segmentation_local = None
+        self.success = False
 
     def set_data(self, save_folder, segmentation_local):
         self.save_folder = save_folder
         self.segmentation_local = os.path.join(save_folder, segmentation_local)
 
     def run(self):
-        label_data, header = nrrd.read(self.segmentation_local)
-        unique_label = np.unique(label_data)
+        try:
+            label_data, _ = nrrd.read(self.segmentation_local)
+            unique_label = [int(value) for value in np.unique(label_data) if value not in (0, 545)]
+            downloaded_mesh_path = os.path.join(self.save_folder, 'downloaded_meshes')
+            os.makedirs(downloaded_mesh_path, exist_ok=True)
 
-        n_unique_labels = len(unique_label)
-        progress_step = np.linspace(0, 100, n_unique_labels)
-
-        downloaded_mesh_path = os.path.join(self.save_folder, 'downloaded_meshes')
-        if not os.path.exists(downloaded_mesh_path):
-            os.mkdir(downloaded_mesh_path)
-
-        for i in range(n_unique_labels):
-            ind = unique_label[i]
-            self.progress.emit(progress_step[i])
-            if ind in [0, 545]:
-                continue
-            url = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/structure_meshes/{}.obj'.format(
-                ind)
-            r = requests.get(url, allow_redirects=True)
-            da_file = open(os.path.join(downloaded_mesh_path, '{}.obj'.format(ind)), 'wb')
-            da_file.write(r.content)
-            da_file.close()
-        self.finished.emit()
+            for index, label_id in enumerate(unique_label):
+                url = (
+                    'https://download.alleninstitute.org/informatics-archive/'
+                    'current-release/mouse_ccf/annotation/ccf_2017/'
+                    'structure_meshes/{}.obj'
+                ).format(label_id)
+                destination = os.path.join(
+                    downloaded_mesh_path, '{}.obj'.format(label_id)
+                )
+                download_file(url, destination)
+                self.progress.emit(int((index + 1) / len(unique_label) * 100))
+            self.success = True
+        except Exception as exc:
+            self.failed.emit(str(exc))
+        finally:
+            self.finished.emit()
 
 
 class AllenDownloader(QDialog):
@@ -364,8 +370,8 @@ class AllenDownloader(QDialog):
         self.vs_rabnt2.toggled.connect(self.voxel_size_radio_clicked)
         self.vs_rabnt3.toggled.connect(self.voxel_size_radio_clicked)
 
-        self.data_url = "http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/average_template/average_template_10.nrrd"
-        self.segmentation_url = "http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/annotation_10.nrrd"
+        self.data_url = "https://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/average_template/average_template_10.nrrd"
+        self.segmentation_url = "https://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/annotation_10.nrrd"
 
         self.label_local = "query.csv"
         self.data_local = "average_template_10.nrrd"
@@ -377,6 +383,8 @@ class AllenDownloader(QDialog):
         self.process_finished = False
         self.downloading_atlas = False
         self.downloading_meshes = False
+        self.download_threads = {}
+        self.download_errors = {}
 
         self.label_bar = QProgressBar()
         self.label_bar.setMinimumWidth(400)
@@ -492,20 +500,20 @@ class AllenDownloader(QDialog):
     def voxel_size_radio_clicked(self):
         if self.vs_rabnt1.isChecked():
             self.voxel_size = 10
-            self.data_url = "http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/average_template/average_template_10.nrrd"
-            self.segmentation_url = "http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/annotation_10.nrrd"
+            self.data_url = "https://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/average_template/average_template_10.nrrd"
+            self.segmentation_url = "https://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/annotation_10.nrrd"
             self.data_local = "average_template_10.nrrd"
             self.segmentation_local = "annotation_10.nrrd"
         elif self.vs_rabnt2.isChecked():
             self.voxel_size = 25
-            self.data_url = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/average_template/average_template_25.nrrd'
-            self.segmentation_url = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/annotation_25.nrrd'
+            self.data_url = 'https://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/average_template/average_template_25.nrrd'
+            self.segmentation_url = 'https://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/annotation_25.nrrd'
             self.data_local = "average_template_25.nrrd"
             self.segmentation_local = "annotation_25.nrrd"
         else:
             self.voxel_size = 50
-            self.data_url = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/average_template/average_template_50.nrrd'
-            self.segmentation_url = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/annotation_50.nrrd'
+            self.data_url = 'https://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/average_template/average_template_50.nrrd'
+            self.segmentation_url = 'https://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/annotation_50.nrrd'
             self.data_local = "average_template_50.nrrd"
             self.segmentation_local = "annotation_50.nrrd"
 
@@ -526,12 +534,10 @@ class AllenDownloader(QDialog):
                 shutil.copyfile(join(dirname(__file__), "data/query.csv"), target)
 
             self.start_thread(self.segmentation_url, self.segmentation_local, self.set_segmentation_bar_value)
-            time.sleep(0.1)
             self.start_thread(self.data_url, self.data_local, self.set_data_bar_value)
-            time.sleep(0.1)
 
     def download_mesh_start(self):
-        if self.downloading_atlas:
+        if self.has_active_downloads():
             self.process_info.setText('Please wait until the atlas finish downloading.')
             return
 
@@ -558,19 +564,50 @@ class AllenDownloader(QDialog):
             self.mesh_worker.moveToThread(self.mesh_thread)
             self.mesh_thread.started.connect(self.mesh_worker.run)
             self.mesh_worker.finished.connect(self.mesh_thread.quit)
+            self.mesh_worker.finished.connect(self.mesh_download_finished)
             self.mesh_worker.finished.connect(self.mesh_worker.deleteLater)
             self.mesh_thread.finished.connect(self.mesh_thread.deleteLater)
             self.mesh_worker.progress.connect(self.mesh_report_progress)
+            self.mesh_worker.failed.connect(self.mesh_download_failed)
             self.mesh_thread.start()
 
     #
     def start_thread(self, url, local, func):
-        file_size = requests.get(url, stream=True).headers['Content-Length']
-        file_obj = open(os.path.join(self.saving_folder, local), 'wb')
+        destination = os.path.join(self.saving_folder, local)
+        self.download_errors.pop(local, None)
+        thread = DownloadThread(url, destination, parent=self)
+        self.download_threads[local] = thread
+        thread.download_process_signal.connect(func)
+        thread.download_error_signal.connect(
+            lambda message, name=local: self.download_failed(name, message)
+        )
+        thread.finished.connect(
+            lambda name=local: self.download_thread_finished(name)
+        )
+        thread.start()
 
-        self.da_thread = DownloadThread(url, file_size, file_obj, buffer=1024)
-        self.da_thread.download_process_signal.connect(func)
-        self.da_thread.start()
+    def download_failed(self, local, message):
+        self.download_errors[local] = message
+        self.process_info.setText('Download failed for {}: {}'.format(local, message))
+
+    def download_thread_finished(self, local):
+        thread = self.download_threads.pop(local, None)
+        if thread is not None:
+            thread.deleteLater()
+        self.downloading_atlas = self.has_active_downloads()
+
+    def has_active_downloads(self):
+        return any(thread.isRunning() for thread in self.download_threads.values())
+
+    def mesh_download_failed(self, message):
+        self.downloading_meshes = False
+        self.process_info.setText('Mesh download failed: {}'.format(message))
+
+    def mesh_download_finished(self):
+        self.downloading_meshes = False
+        if self.mesh_worker.success:
+            self.finish[2] = True
+            self.mesh_bar.setValue(100)
 
     # Setting progress bar
     def set_data_bar_value(self, value):
@@ -603,7 +640,7 @@ class AllenDownloader(QDialog):
             return
 
     def process_start(self):
-        if self.downloading_atlas or self.downloading_meshes:
+        if self.has_active_downloads() or self.downloading_meshes:
             self.process_info.setText('Please wait until finishing downloading files.')
             return
         else:
@@ -616,20 +653,23 @@ class AllenDownloader(QDialog):
 
         if saving_folder != '':
             # check files
-            exist_files = os.listdir(saving_folder)
-            if self.data_local not in exist_files:
+            data_path = os.path.join(saving_folder, self.data_local)
+            segmentation_path = os.path.join(saving_folder, self.segmentation_local)
+            if not os.path.isfile(data_path) or os.path.getsize(data_path) == 0:
                 self.process_info.setText('Atlas Data file is not in the selected folder. Please download atlas.')
                 return
-            if self.segmentation_local not in exist_files:
+            if not os.path.isfile(segmentation_path) or os.path.getsize(segmentation_path) == 0:
                 self.process_info.setText('Segmentation Data file is not in the selected folder.')
                 return
-            if self.label_local not in exist_files:
-                target = os.path.join(self.saving_folder, self.label_local)
+            if not os.path.exists(os.path.join(saving_folder, self.label_local)):
+                target = os.path.join(saving_folder, self.label_local)
                 if not os.path.exists(target):
                     shutil.copyfile(join(dirname(__file__), "data/query.csv"), target)
-            if not os.path.exists(os.path.join(saving_folder, 'downloaded_meshes')):
+            mesh_folder = os.path.join(saving_folder, 'downloaded_meshes')
+            root_mesh = os.path.join(mesh_folder, '997.obj')
+            if not os.path.isfile(root_mesh) or os.path.getsize(root_mesh) == 0:
                 self.process_info.setText(
-                    'Could not find downloaded meshes in the selected folder. Please download meshes.')
+                    'Could not find complete downloaded meshes. Please download meshes.')
                 return
             self.process_btn.setVisible(False)
             self.worker.set_data(saving_folder, self.data_local, self.segmentation_local, self.label_local,
@@ -637,6 +677,7 @@ class AllenDownloader(QDialog):
             self.worker.moveToThread(self.thread)
             self.thread.started.connect(self.worker.run)
             self.worker.finished.connect(self.on_finish)
+            self.worker.failed.connect(self.process_failed)
             # self.worker.finished.connect(self.worker.deleteLater)
             self.thread.finished.connect(self.thread.deleteLater)
             self.worker.progress.connect(self.report_progress)
@@ -644,9 +685,30 @@ class AllenDownloader(QDialog):
 
     def on_finish(self):
         self.thread.quit()
-        self.close()
+        self.process_finished = True
+        self.continue_process = True
+        self.accept()
+
+    def process_failed(self, message):
+        self.thread.quit()
+        self.continue_process = False
+        QMessageBox.warning(self, 'Atlas processing failed', message)
+        self.reject()
 
     def closeEvent(self, event):
+        if self.process_finished:
+            event.accept()
+            return
+        if (
+            self.has_active_downloads()
+            or self.mesh_thread.isRunning()
+            or self.thread.isRunning()
+        ):
+            QMessageBox.information(
+                self, 'Operation in progress', 'Please wait for the active operation to finish.'
+            )
+            event.ignore()
+            return
         reply = QMessageBox.question(self, 'Message',
                                      "Do you want to leave?", QMessageBox.Yes, QMessageBox.No)
 
@@ -655,4 +717,3 @@ class AllenDownloader(QDialog):
             event.accept()
         else:
             event.ignore()
-
