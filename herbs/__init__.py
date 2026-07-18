@@ -25,8 +25,9 @@ For Others
 """
 
 from .run_herbs import run_herbs
+from .version import __version__
 
-__all__ = ["run_herbs", "CZIReader"]
+__all__ = ["run_herbs", "CZIReader", "__version__"]
 
 
 def __getattr__(name):

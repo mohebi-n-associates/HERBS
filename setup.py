@@ -11,6 +11,12 @@ def read(fname):
         return handle.read()
 
 
+def read_version():
+    namespace = {}
+    exec(read(os.path.join("herbs", "version.py")), namespace)
+    return namespace["__version__"]
+
+
 CLASSIFIERS = """
 Development Status :: 3 - Alpha
 Intended Audience :: Science/Research
@@ -70,7 +76,7 @@ qss/*.qss
 
 setup(
     name="herbs",
-    version="0.2.8",
+    version=read_version(),
     author="Jingyi GF",
     author_email="jingyi.g.fuglstad@gmail.com",
     description="A Python-based GUI for Histological E-data Registration in Brain Space",

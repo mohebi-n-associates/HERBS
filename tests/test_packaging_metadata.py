@@ -13,6 +13,7 @@ class PackagingMetadataTests(unittest.TestCase):
             runpy.run_path(str(REPOSITORY_ROOT / "setup.py"), run_name="__main__")
 
         metadata = setup.call_args.kwargs
+        self.assertEqual(metadata["version"], "0.2.8")
         self.assertEqual(metadata["python_requires"], ">=3.8.10,<3.12")
         self.assertIn("PyQt5 >= 5.15.5", metadata["install_requires"])
         self.assertFalse(
