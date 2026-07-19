@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import tempfile
 import types
@@ -32,6 +33,27 @@ class RuntimePathTests(unittest.TestCase):
         self.assertTrue(icon.is_absolute())
         self.assertTrue(icon.is_file())
         self.assertIn("QMainWindow", style)
+
+    def test_stylesheet_icon_urls_resolve_outside_the_working_directory(self):
+        qss_directory = Path(resource_path("qss"))
+        previous_directory = os.getcwd()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            os.chdir(temporary_directory)
+            try:
+                styles = [
+                    read_qss_file("qss/{}".format(path.name))
+                    for path in qss_directory.glob("*.qss")
+                ]
+            finally:
+                os.chdir(previous_directory)
+
+        urls = []
+        for style in styles:
+            urls.extend(re.findall(r'url\("([^"]+)"\)', style))
+
+        self.assertTrue(urls)
+        self.assertTrue(all(Path(url).is_absolute() for url in urls))
+        self.assertTrue(all(Path(url).is_file() for url in urls))
 
     def test_launcher_does_not_change_the_process_working_directory(self):
         observed_directories = []

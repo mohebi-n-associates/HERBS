@@ -14,7 +14,7 @@ HERBS 0.2.8.1 is a reliability, security, and maintainability release. It does n
 - Fixed label, layer, cell-detection, probe-eraser, and slice-registration behavior.
 - Supported packaging for Python 3.8.10 through 3.11, including a console launcher.
 - Package resources and preferences no longer depend on or modify the process working directory.
-- 55 regression tests plus continuous integration across all supported Python versions.
+- 56 regression tests plus continuous integration across all supported Python versions.
 
 ## Atlas and Coordinate Correctness
 
@@ -185,6 +185,8 @@ Importing `herbs` no longer imports the complete GUI and CZI stack immediately. 
 
 Icons, stylesheets, UI files, and bundled data now resolve relative to the installed HERBS package. The launcher no longer changes the caller’s process-wide working directory, so relative paths in notebooks, scripts, and embedding applications continue to work normally.
 
+Relative `url(icons/...)` references embedded inside Qt stylesheets are now rewritten to absolute package-resource paths when each stylesheet is loaded. This prevents missing spinbox arrows, splitter dots, tree icons, and combo-box icons when HERBS is launched from a home directory, notebook, or another working directory.
+
 The last selected atlas path is stored atomically in the user configuration directory instead of `herbs/data/atlas_path.txt` inside the installation:
 
 - Windows: `%APPDATA%\HERBS\settings.json`
@@ -199,7 +201,7 @@ Focused modules were extracted for atlas transforms, coordinate checks, slice an
 
 Version 0.2.8.1 includes:
 
-- 55 automated regression tests.
+- 56 automated regression tests.
 - Headless GUI construction and resource-path smoke testing.
 - Python source compilation checks.
 - Targeted Ruff checks for syntax errors and undefined names.
