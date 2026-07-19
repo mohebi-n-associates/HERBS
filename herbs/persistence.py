@@ -1,6 +1,7 @@
 """Versioned, non-executable persistence for HERBS user data."""
 
 import io
+import importlib
 import json
 import os
 from pathlib import Path
@@ -51,6 +52,25 @@ REQUIRED_KEYS = {
 }
 
 
+def _numpy_pickle_globals():
+    """Return inert NumPy constructors used by supported pickle versions."""
+    safe_globals = {
+        ("numpy", "dtype"): np.dtype,
+        ("numpy", "ndarray"): np.ndarray,
+        ("numpy.core.multiarray", "_reconstruct"): np.core.multiarray._reconstruct,
+        ("numpy.core.multiarray", "scalar"): np.core.multiarray.scalar,
+        ("numpy._core.multiarray", "_reconstruct"): np.core.multiarray._reconstruct,
+        ("numpy._core.multiarray", "scalar"): np.core.multiarray.scalar,
+    }
+    for module_name in ("numpy.core.numeric", "numpy._core.numeric"):
+        try:
+            numeric_module = importlib.import_module(module_name)
+            safe_globals[(module_name, "_frombuffer")] = numeric_module._frombuffer
+        except (AttributeError, ImportError):
+            continue
+    return safe_globals
+
+
 class RestrictedUnpickler(pickle.Unpickler):
     """Legacy reader limited to inert builtins and NumPy array machinery."""
 
@@ -59,12 +79,7 @@ class RestrictedUnpickler(pickle.Unpickler):
         ("builtins", "frozenset"): frozenset,
         ("builtins", "set"): set,
         ("builtins", "slice"): slice,
-        ("numpy", "dtype"): np.dtype,
-        ("numpy", "ndarray"): np.ndarray,
-        ("numpy.core.multiarray", "_reconstruct"): np.core.multiarray._reconstruct,
-        ("numpy.core.multiarray", "scalar"): np.core.multiarray.scalar,
-        ("numpy._core.multiarray", "_reconstruct"): np.core.multiarray._reconstruct,
-        ("numpy._core.multiarray", "scalar"): np.core.multiarray.scalar,
+        **_numpy_pickle_globals(),
     }
 
     def find_class(self, module, name):

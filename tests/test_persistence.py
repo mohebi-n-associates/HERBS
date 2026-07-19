@@ -52,6 +52,22 @@ class LegacyPickleTests(unittest.TestCase):
             self.assertIn("unsupported type", error)
             self.assertFalse(marker.exists())
 
+    def test_legacy_reader_accepts_highest_protocol_numpy_arrays(self):
+        payload = {
+            "index": np.arange(8, dtype=np.int64),
+            "label": np.asarray(["region-a", "region-b"]),
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "numpy-arrays.pkl"
+            with path.open("wb") as stream:
+                pickle.dump(payload, stream, protocol=pickle.HIGHEST_PROTOCOL)
+
+            loaded, error = persistence.load_legacy_pickle(path)
+
+        self.assertIsNone(error)
+        np.testing.assert_array_equal(loaded["index"], payload["index"])
+        np.testing.assert_array_equal(loaded["label"], payload["label"])
+
 
 class SafeArchiveTests(unittest.TestCase):
     def test_round_trip_preserves_nested_arrays_and_types(self):
