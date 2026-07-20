@@ -43,9 +43,9 @@ aicspylibczi >= 3.0.3
 pyqtgraph == 0.12.3
 PyOpenGL >= 3.1.5
 QtRangeSlider == 0.1.5
-opencv-python >= 4.5.4.60
+opencv-python >= 4.5.4.60, < 4.12
 numba >= 0.54.1
-numpy >= 1.20.3
+numpy >= 1.20.3, < 2
 scipy >= 1.7.3
 requests >= 2.26.0
 nibabel >= 3.2.1

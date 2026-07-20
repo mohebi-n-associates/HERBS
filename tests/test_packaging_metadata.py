@@ -16,6 +16,11 @@ class PackagingMetadataTests(unittest.TestCase):
         self.assertEqual(metadata["version"], "0.2.8.1")
         self.assertEqual(metadata["python_requires"], ">=3.8.10,<3.12")
         self.assertIn("PyQt5 >= 5.15.5", metadata["install_requires"])
+        self.assertIn("pyqtgraph == 0.12.3", metadata["install_requires"])
+        self.assertIn("numpy >= 1.20.3, < 2", metadata["install_requires"])
+        self.assertIn(
+            "opencv-python >= 4.5.4.60, < 4.12", metadata["install_requires"]
+        )
         self.assertFalse(
             any(requirement.startswith(("h5py", "tables"))
                 for requirement in metadata["install_requires"])

@@ -163,6 +163,8 @@ Downloader worker threads are retained for their full lifetime, errors propagate
 
 Package metadata now consistently supports Python `>=3.8.10,<3.12`, and PyQt5 5.15.5 or newer is installed for every supported Python version, including Python 3.11.
 
+NumPy is constrained below version 2 while HERBS remains on PyQtGraph 0.12.3. That PyQtGraph release calls the deprecated `np.product` alias during affine atlas slicing; NumPy 2 removed the alias, causing every atlas-rotation update to fail. OpenCV is correspondingly constrained below 4.12 because OpenCV 4.12 and later require NumPy 2 on supported HERBS Python versions. These compatible bounds allow the installer to select NumPy 1.26 and OpenCV 4.11 instead of producing an internally inconsistent environment.
+
 The unused `h5py` and `tables` dependencies were removed. HERBS did not import either library, while `tables` could force an unnecessary native HDF5 build and prevent installation on otherwise supported systems.
 
 The package, installer metadata, and About dialog now obtain `0.2.8.1` from one canonical version value. Project and issue links point to the current `mohebi-n-associates/HERBS` repository.
