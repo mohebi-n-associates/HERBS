@@ -62,12 +62,17 @@ def _numpy_pickle_globals():
         ("numpy._core.multiarray", "_reconstruct"): np.core.multiarray._reconstruct,
         ("numpy._core.multiarray", "scalar"): np.core.multiarray.scalar,
     }
-    for module_name in ("numpy.core.numeric", "numpy._core.numeric"):
+    frombuffer = None
+    for module_name in ("numpy._core.numeric", "numpy.core.numeric"):
         try:
             numeric_module = importlib.import_module(module_name)
-            safe_globals[(module_name, "_frombuffer")] = numeric_module._frombuffer
+            frombuffer = numeric_module._frombuffer
+            break
         except (AttributeError, ImportError):
             continue
+    if frombuffer is not None:
+        for module_name in ("numpy.core.numeric", "numpy._core.numeric"):
+            safe_globals[(module_name, "_frombuffer")] = frombuffer
     return safe_globals
 
 

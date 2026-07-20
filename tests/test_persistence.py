@@ -1,3 +1,4 @@
+import base64
 import importlib.util
 import os
 from pathlib import Path
@@ -67,6 +68,30 @@ class LegacyPickleTests(unittest.TestCase):
         self.assertIsNone(error)
         np.testing.assert_array_equal(loaded["index"], payload["index"])
         np.testing.assert_array_equal(loaded["label"], payload["label"])
+
+    def test_numpy_2_pickle_loads_with_both_numpy_module_layouts(self):
+        numpy_2_pickle = base64.b64decode(
+            "gAWVlwAAAAAAAAB9lIwFaW5kZXiUjBNudW1weS5fY29yZS5udW1lcmljlIwL"
+            "X2Zyb21idWZmZXKUk5QolhgAAAAAAAAA5QMAAAAAAAAIAAAAAAAAADcCAAAAAAAA"
+            "lIwFbnVtcHmUjAVkdHlwZZSTlIwCaTiUiYiHlFKUKEsDjAE8lE5OTkr/////"
+            "Sv////9LAHSUYksDhZSMAUOUdJRSlHMu"
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "numpy-2-array.pkl"
+            path.write_bytes(numpy_2_pickle)
+
+            loaded, error = persistence.load_legacy_pickle(path)
+
+        self.assertIsNone(error)
+        np.testing.assert_array_equal(loaded["index"], [997, 8, 567])
+        self.assertIn(
+            ("numpy.core.numeric", "_frombuffer"),
+            persistence.RestrictedUnpickler.SAFE_GLOBALS,
+        )
+        self.assertIn(
+            ("numpy._core.numeric", "_frombuffer"),
+            persistence.RestrictedUnpickler.SAFE_GLOBALS,
+        )
 
 
 class SafeArchiveTests(unittest.TestCase):

@@ -14,7 +14,7 @@ HERBS 0.2.8.1 is a reliability, security, and maintainability release. It does n
 - Fixed label, layer, cell-detection, probe-eraser, and slice-registration behavior.
 - Supported packaging for Python 3.8.10 through 3.11, including a console launcher.
 - Package resources and preferences no longer depend on or modify the process working directory.
-- 57 regression tests plus continuous integration across all supported Python versions.
+- 58 regression tests plus continuous integration across all supported Python versions.
 
 ## Atlas and Coordinate Correctness
 
@@ -86,7 +86,7 @@ Writes are atomic: HERBS writes a temporary file beside the destination and repl
 
 Legacy `.pkl` files can still be opened when they contain the inert built-in and NumPy data types used by older HERBS saves. They are read with a restricted unpickler that rejects executable or unsupported Python globals.
 
-The restricted reader recognizes the inert `_frombuffer` array constructor used by NumPy 2 highest-protocol pickles, under both the historical `numpy.core` and current `numpy._core` module names. Atlas label caches created with NumPy 2 therefore load without weakening the rejection of executable pickle globals.
+The restricted reader recognizes the inert `_frombuffer` array constructor used by NumPy 2 highest-protocol pickles, under both the historical `numpy.core` and current `numpy._core` module names. Atlas label caches created with NumPy 2 therefore remain readable on NumPy 1 as well as NumPy 2, without weakening the rejection of executable pickle globals.
 
 After opening a legacy file, save it again in the corresponding new HERBS format. Some legacy files containing arbitrary custom Python or Qt objects will now be rejected intentionally rather than executed.
 
@@ -203,7 +203,7 @@ Focused modules were extracted for atlas transforms, coordinate checks, slice an
 
 Version 0.2.8.1 includes:
 
-- 57 automated regression tests.
+- 58 automated regression tests.
 - Headless GUI construction and resource-path smoke testing.
 - Python source compilation checks.
 - Targeted Ruff checks for syntax errors and undefined names.
