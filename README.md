@@ -4,7 +4,7 @@ A Python-based GUI for Histological E-data Registration in Brain Space
 
 HERBS is an open source, extensible, intuitive and interactive software platform for image visualisation and image registration. Where the image registration is the process of identifying a spatial transformation that maps images to a template such that corresponding anatomical structures are optimally aligned, or in other words, a voxel-wise ‘correspondence’ is established between the images and template.
 
-HERBS has been tested on Windows 10, macOS (Big Sur–Monterey), and Linux (Kubuntu 18.04 and Ubuntu 22.04 LTS). The package supports Python 3.8.10 through Python 3.11 with PyQt5 5.15.5 or newer. For details, see the HERBS CookBook or the latest tutorials.
+HERBS has been tested on Windows 10, macOS (Big Sur–Monterey), and Linux (Kubuntu 18.04 and Ubuntu 22.04 LTS). Python 3.12 in a dedicated Conda environment is recommended, with PyQt5 5.15.5 or newer. For details, see the HERBS CookBook or the latest tutorials.
 
 HERBS provides users:
 
@@ -16,25 +16,37 @@ HERBS provides users:
 
 > **Note:** The PyPI package (`pip install herbs`) is no longer maintained and is out of date. Please install HERBS from the source repository as shown below.
 
-Clone (or download) this repository and install it with `pip`:
+Install [Miniconda or Anaconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html), then create a dedicated environment named `HERBS` with Python 3.12:
 
 ```bash
-$ git clone https://github.com/mohebi-n-associates/HERBS.git
-$ cd HERBS
-$ pip install .
+conda create --name HERBS python=3.12 -y
+conda activate HERBS
+python --version
+python -m pip install --upgrade pip
 ```
+
+The version check should report Python 3.12. Clone this repository and install HERBS while the `HERBS` environment is active:
+
+```bash
+git clone https://github.com/mohebi-n-associates/HERBS.git
+cd HERBS
+python -m pip install .
+```
+
+Run `conda activate HERBS` again whenever you open a new terminal before launching or updating HERBS.
 
 If you would like to modify the source code and have your changes take effect immediately (without reinstalling), use an editable install instead:
 
 ```bash
-$ pip install -e .
+python -m pip install -e .
 ```
 
-We strongly recommend installing HERBS inside a dedicated virtual environment (see the notes below). To upgrade to the newest version later, pull the latest changes and reinstall:
+To upgrade to the newest version later, activate the same environment, pull the latest changes, and reinstall:
 
 ```bash
-$ git pull
-$ pip install . --upgrade
+conda activate HERBS
+git pull
+python -m pip install . --upgrade
 ```
 
 Please always use the newest version of HERBS.
@@ -47,8 +59,9 @@ See [What’s New in HERBS 0.2.8.1](WhatsNew-0.2.8.1.md) for the release details
 Download the repository from GitHub (**Code → Download ZIP**), unzip it, then from a terminal:
 
 ```bash
-$ cd path/to/HERBS       # the unzipped folder containing setup.py
-$ pip install .
+conda activate HERBS
+cd path/to/HERBS       # the unzipped folder containing setup.py
+python -m pip install .
 ```
 </details>
 
@@ -97,15 +110,11 @@ fullName = '/System/Library/Frameworks/OpenGL.framework/OpenGL'
 ```
 
 
-- For the current version of HERBS, Python is required to be installed. Please see (https://www.python.org) for downloading.
+- The recommended Conda command in the installation section installs the correct Python version inside the `HERBS` environment; a separate system-wide Python installation is not required.
 
-- If you would like to install HERBS through terminal, **pip** is required. 
-	- Check if pip is installed, `pip --version` or `pip help`.
-	- Use `python3 -m ensurepip` for MacOS to install pip.
-	- Use `curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py` to download requiring file for installing pip on Windows and `python get-pip.py` to install pip.
-	- Please update pip to the newest version before installing HERBS.
+- Conda includes **pip** in the environment. Use `python -m pip` as shown above so packages are installed into the active `HERBS` environment rather than another Python installation. You can confirm its location with `python -m pip --version`.
 
-- We strongly recommend users to use Python and install packages with virtual environment. For no-coders, we strongly recommend to use IDE to create environment at the moment. A desktop app of HERBS is on its way.   
+- Install and run HERBS in the dedicated Conda environment named `HERBS` described above to prevent dependency conflicts with other Python programs.
 
 ## Some Dependencies Conflict Issues
 - The initial of test of HERBS was carried on Windows 10 (one user claimed he had a Windows 11 before, but it turned out to be a Windows 10 at the end), MacOSx (Big Sur - Monterey) and Linux (Kubuntu 18.04, Ubuntu 22.04 LTS) with Python==3.8.10 and the corresponding dependencies listed in CookBook. 

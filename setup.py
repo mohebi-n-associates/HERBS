@@ -28,6 +28,7 @@ Programming Language :: Python :: 3.8
 Programming Language :: Python :: 3.9
 Programming Language :: Python :: 3.10
 Programming Language :: Python :: 3.11
+Programming Language :: Python :: 3.12
 Programming Language :: Python :: 3 :: Only
 Topic :: Software Development
 Topic :: Scientific/Engineering
@@ -89,7 +90,7 @@ setup(
         "Bug Tracker": "https://github.com/mohebi-n-associates/HERBS/issues",
     },
     classifiers=[_f for _f in CLASSIFIERS.split("\n") if _f],
-    python_requires=">=3.8.10,<3.12",
+    python_requires=">=3.8.10,<3.13",
     install_requires=[_f for _f in REQUIRES.split("\n") if _f],
     entry_points={"console_scripts": ["herbs=herbs.run_herbs:run_herbs"]},
 )

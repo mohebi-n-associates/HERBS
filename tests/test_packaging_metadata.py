@@ -14,7 +14,7 @@ class PackagingMetadataTests(unittest.TestCase):
 
         metadata = setup.call_args.kwargs
         self.assertEqual(metadata["version"], "0.2.8.1")
-        self.assertEqual(metadata["python_requires"], ">=3.8.10,<3.12")
+        self.assertEqual(metadata["python_requires"], ">=3.8.10,<3.13")
         self.assertIn("PyQt5 >= 5.15.5", metadata["install_requires"])
         self.assertIn("pyqtgraph == 0.12.3", metadata["install_requires"])
         self.assertIn("numpy >= 1.20.3, < 2", metadata["install_requires"])
@@ -31,6 +31,9 @@ class PackagingMetadataTests(unittest.TestCase):
         )
         self.assertIn(
             "Programming Language :: Python :: 3.11", metadata["classifiers"]
+        )
+        self.assertIn(
+            "Programming Language :: Python :: 3.12", metadata["classifiers"]
         )
         self.assertNotIn("Typing :: Typed", metadata["classifiers"])
         self.assertEqual(
